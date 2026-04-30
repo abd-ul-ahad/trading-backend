@@ -1,17 +1,12 @@
-import {
-  Table,
-  Column,
-  DataType,
-  Default,
-} from 'sequelize-typescript';
+import { Table, Column, DataType, Default } from 'sequelize-typescript';
 import { BaseModel } from './base.model';
 
 /**
  * AccountPerformance model representing historical account performance snapshots
- * 
+ *
  * Stores intraday and end-of-day snapshots of account equity, margin, and PnL for trend analysis.
  * Automatically synchronized to real_time_accounts table via PostgreSQL triggers.
- * 
+ *
  * Features:
  * - UUID primary key (id from BaseModel)
  * - Decimal precision for financial metrics (18, 8)
@@ -19,7 +14,7 @@ import { BaseModel } from './base.model';
  * - Automatic timestamp management via triggers (last_updated)
  * - Validation for margin_level range (0-1000)
  * - Soft delete support (inherited from BaseModel)
- * 
+ *
  * Requirements: 11.2, 11.7
  */
 @Table({

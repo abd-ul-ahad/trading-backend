@@ -3,7 +3,7 @@ import { SequelizeModuleOptions } from '@nestjs/sequelize';
 
 /**
  * Database configuration service for PostgreSQL
- * 
+ *
  * Supports three environments:
  * - Development: PostgreSQL with console logging
  * - Test: PostgreSQL with separate test database
@@ -104,7 +104,12 @@ export class DatabaseConfigService {
    * Validate required environment variables for production
    */
   private validateProductionEnvVars(): void {
-    const requiredVars = ['DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE'];
+    const requiredVars = [
+      'DB_HOST',
+      'DB_USERNAME',
+      'DB_PASSWORD',
+      'DB_DATABASE',
+    ];
     const missingVars = requiredVars.filter((varName) => !process.env[varName]);
 
     if (missingVars.length > 0) {

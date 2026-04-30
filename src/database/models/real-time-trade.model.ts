@@ -24,10 +24,10 @@ export enum TradeStatus {
 
 /**
  * RealTimeTrade model representing live trade monitoring data
- * 
+ *
  * Stores only open trades and recently closed trades (24hr window) for live dashboard queries.
  * Automatically synchronized from the trades table via PostgreSQL triggers.
- * 
+ *
  * Features:
  * - UUID primary key (trade_id) - references trades.trade_id
  * - Minimal columns for fast queries (no exit_price, pnl)
@@ -35,7 +35,7 @@ export enum TradeStatus {
  * - Automatic synchronization via PostgreSQL triggers
  * - Read-only from application perspective (managed by triggers)
  * - Extends Model directly (not BaseModel) since it uses trade_id as PK and doesn't have standard timestamps
- * 
+ *
  * Requirements: 11.4, 11.7
  */
 @Table({

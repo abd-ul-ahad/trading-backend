@@ -1,9 +1,9 @@
 /**
  * Model CRUD Operations Test Suite
- * 
+ *
  * Verifies that all Sequelize models are properly registered and can perform
  * basic CRUD operations against the database.
- * 
+ *
  * Test Coverage:
  * - Database connection and model registration
  * - Trade model CRUD operations
@@ -12,7 +12,7 @@
  * - RealTimeTrade model read operations (read-only, managed by triggers)
  * - RealTimeAccount model read operations (read-only, managed by triggers)
  * - RealTimeStrategy model read operations (read-only, managed by triggers)
- * 
+ *
  * Requirements: Task 8 - Checkpoint verification
  */
 
@@ -112,7 +112,7 @@ describe('Model Registration and CRUD Operations', () => {
         symbol: 'AAPL',
         direction: TradeDirection.LONG,
         entry_time: new Date('2024-01-15T10:00:00Z'),
-        entry_price: 150.50,
+        entry_price: 150.5,
         quantity: 100,
         status: TradeStatus.OPEN,
       });
@@ -152,7 +152,7 @@ describe('Model Registration and CRUD Operations', () => {
         symbol: 'GOOGL',
         direction: TradeDirection.LONG,
         entry_time: new Date('2024-01-15T12:00:00Z'),
-        entry_price: 140.00,
+        entry_price: 140.0,
         quantity: 75,
         status: TradeStatus.OPEN,
       });
@@ -165,8 +165,8 @@ describe('Model Registration and CRUD Operations', () => {
       await trade.update({
         status: TradeStatus.CLOSED,
         exit_time: new Date('2024-01-15T14:00:00Z'),
-        exit_price: 145.00,
-        pnl: 375.00,
+        exit_price: 145.0,
+        pnl: 375.0,
       });
 
       await trade.reload();
@@ -186,7 +186,7 @@ describe('Model Registration and CRUD Operations', () => {
         symbol: 'MSFT',
         direction: TradeDirection.LONG,
         entry_time: new Date('2024-01-15T13:00:00Z'),
-        entry_price: 380.00,
+        entry_price: 380.0,
         quantity: 25,
         status: TradeStatus.OPEN,
       });
@@ -209,7 +209,7 @@ describe('Model Registration and CRUD Operations', () => {
           symbol: 'AAPL',
           direction: TradeDirection.LONG,
           entry_time: new Date('2024-01-15T10:00:00Z'),
-          entry_price: 150.00,
+          entry_price: 150.0,
           quantity: 100,
           status: TradeStatus.OPEN,
         },
@@ -219,7 +219,7 @@ describe('Model Registration and CRUD Operations', () => {
           symbol: 'TSLA',
           direction: TradeDirection.SHORT,
           entry_time: new Date('2024-01-15T11:00:00Z'),
-          entry_price: 250.00,
+          entry_price: 250.0,
           quantity: 50,
           status: TradeStatus.OPEN,
         },
@@ -229,7 +229,7 @@ describe('Model Registration and CRUD Operations', () => {
           symbol: 'GOOGL',
           direction: TradeDirection.LONG,
           entry_time: new Date('2024-01-15T09:00:00Z'),
-          entry_price: 140.00,
+          entry_price: 140.0,
           quantity: 75,
           status: TradeStatus.CLOSED,
         },
@@ -265,7 +265,9 @@ describe('Model Registration and CRUD Operations', () => {
 
       expect(accountPerf).toBeDefined();
       expect(accountPerf.id).toBeDefined();
-      expect(accountPerf.account_id).toBe('123e4567-e89b-12d3-a456-426614174001');
+      expect(accountPerf.account_id).toBe(
+        '123e4567-e89b-12d3-a456-426614174001',
+      );
       expect(num(accountPerf.equity)).toBe(10500);
       expect(accountPerf.last_updated).toBeDefined();
     });
@@ -498,7 +500,7 @@ describe('Model Registration and CRUD Operations', () => {
           symbol: 'AAPL',
           direction: TradeDirection.LONG,
           entry_time: new Date('2024-01-15T10:00:00Z'),
-          entry_price: 150.50,
+          entry_price: 150.5,
           quantity: 100,
           status: TradeStatus.OPEN,
         });
@@ -526,7 +528,7 @@ describe('Model Registration and CRUD Operations', () => {
             symbol: 'AAPL',
             direction: TradeDirection.LONG,
             entry_time: new Date('2024-01-15T10:00:00Z'),
-            entry_price: 150.00,
+            entry_price: 150.0,
             quantity: 100,
             status: TradeStatus.OPEN,
           },
@@ -536,7 +538,7 @@ describe('Model Registration and CRUD Operations', () => {
             symbol: 'TSLA',
             direction: TradeDirection.SHORT,
             entry_time: new Date('2024-01-15T11:00:00Z'),
-            entry_price: 250.00,
+            entry_price: 250.0,
             quantity: 50,
             status: TradeStatus.OPEN,
           },
@@ -722,5 +724,3 @@ describe('Model Registration and CRUD Operations', () => {
     });
   });
 });
-
-

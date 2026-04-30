@@ -8,10 +8,10 @@ import {
 
 /**
  * RealTimeAccount model representing live account monitoring data
- * 
+ *
  * Stores only the most recent state for each account (single row per account).
  * Automatically synchronized from the account_performance table via PostgreSQL triggers.
- * 
+ *
  * Features:
  * - UUID primary key (account_id)
  * - Single row per account (upsert pattern)
@@ -21,7 +21,7 @@ import {
  * - Read-only from application perspective (managed by triggers)
  * - Extends Model directly (not BaseModel) since it uses account_id as PK and doesn't have standard timestamps
  * - Validation for margin_level range (0-1000)
- * 
+ *
  * Requirements: 11.5, 11.7
  */
 @Table({

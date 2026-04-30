@@ -1,0 +1,962 @@
+﻿{
+  "info": {
+    "name": "MetaAPI Trading Platform",
+    "description": "REST API for MetaAPI account provisioning and trading operations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Provisioning",
+      "item": [
+        {
+          "name": "Account Management",
+          "item": [
+            {
+              "name": "List All Accounts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts"
+                  ]
+                },
+                "description": "Retrieve a list of all trading accounts"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Account by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts/:accountId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts",
+                    ":accountId"
+                  ]
+                },
+                "description": "Retrieve details of a specific trading account"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"My Trading Account\",\n  \"type\": \"cloud\",\n  \"login\": \"12345678\",\n  \"password\": \"SecurePassword123!\",\n  \"server\": \"ICMarketsSC-Demo\",\n  \"provisioningProfileId\": \"your-profile-id\",\n  \"magic\": 123456,\n  \"platform\": \"mt4\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts"
+                  ]
+                },
+                "description": "Create a new trading account"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Account",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Updated Account Name\",\n  \"password\": \"NewPassword123!\",\n  \"server\": \"ICMarketsSC-Demo\",\n  \"magic\": 654321\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts/:accountId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts",
+                    ":accountId"
+                  ]
+                },
+                "description": "Update an existing trading account"
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Account",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts/:accountId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts",
+                    ":accountId"
+                  ]
+                },
+                "description": "Delete a trading account"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Deployment Control",
+          "item": [
+            {
+              "name": "Deploy Account",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts/:accountId/deploy",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts",
+                    ":accountId",
+                    "deploy"
+                  ]
+                },
+                "description": "Deploy a trading account"
+              },
+              "response": []
+            },
+            {
+              "name": "Undeploy Account",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts/:accountId/undeploy",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts",
+                    ":accountId",
+                    "undeploy"
+                  ]
+                },
+                "description": "Undeploy a trading account"
+              },
+              "response": []
+            },
+            {
+              "name": "Redeploy Account",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/accounts/:accountId/redeploy",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "accounts",
+                    ":accountId",
+                    "redeploy"
+                  ]
+                },
+                "description": "Redeploy a trading account"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Account Creation",
+          "item": [
+            {
+              "name": "Create Demo Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"My Demo Account\",\n  \"balance\": 10000,\n  \"leverage\": 100,\n  \"serverName\": \"ICMarketsSC-Demo\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/profiles/:profileId/demo-accounts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "profiles",
+                    ":profileId",
+                    "demo-accounts"
+                  ]
+                },
+                "description": "Create a new demo trading account"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Live Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"My Live Account\",\n  \"login\": \"87654321\",\n  \"password\": \"LivePassword123!\",\n  \"server\": \"ICMarketsSC-Live\",\n  \"provisioningProfileId\": \"your-profile-id\",\n  \"platform\": \"mt4\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/provisioning/live-accounts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "provisioning",
+                    "live-accounts"
+                  ]
+                },
+                "description": "Create a new live trading account"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Trading",
+      "item": [
+        {
+          "name": "Account Information",
+          "item": [
+            {
+              "name": "Get Account Information",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/information",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "information"
+                  ]
+                },
+                "description": "Get account information including balance, equity, margin, etc."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Server Time",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/server-time",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "server-time"
+                  ]
+                },
+                "description": "Get the current server time"
+              },
+              "response": []
+            },
+            {
+              "name": "Get CPU Credits",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/cpu-credits",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "cpu-credits"
+                  ]
+                },
+                "description": "Get CPU credits information"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Positions",
+          "item": [
+            {
+              "name": "Get All Positions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/positions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "positions"
+                  ]
+                },
+                "description": "Get all open positions for an account"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Position by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/positions/:positionId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "positions",
+                    ":positionId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "positionId",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Get a specific position by ID"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Orders",
+          "item": [
+            {
+              "name": "Get Pending Orders",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/orders",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "orders"
+                  ]
+                },
+                "description": "Get all pending orders"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Order by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/orders/:orderId",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "orders",
+                    ":orderId"
+                  ],
+                  "variable": [
+                    {
+                      "key": "orderId",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Get a specific pending order by ID"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Historical Orders by Time",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/history-orders/time?startTime=2024-01-01T00:00:00.000Z&endTime=2024-01-31T23:59:59.999Z",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "history-orders",
+                    "time"
+                  ],
+                  "query": [
+                    {
+                      "key": "startTime",
+                      "value": "2024-01-01T00:00:00.000Z",
+                      "description": "Start time in ISO 8601 format"
+                    },
+                    {
+                      "key": "endTime",
+                      "value": "2024-01-31T23:59:59.999Z",
+                      "description": "End time in ISO 8601 format"
+                    }
+                  ]
+                },
+                "description": "Get historical orders within a time range"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Historical Orders by Ticket",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/history-orders/ticket/:ticket",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "history-orders",
+                    "ticket",
+                    ":ticket"
+                  ],
+                  "variable": [
+                    {
+                      "key": "ticket",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Get historical orders by ticket number"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Deals",
+          "item": [
+            {
+              "name": "Get Deals by Time",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/deals/time?startTime=2024-01-01T00:00:00.000Z&endTime=2024-01-31T23:59:59.999Z",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "deals",
+                    "time"
+                  ],
+                  "query": [
+                    {
+                      "key": "startTime",
+                      "value": "2024-01-01T00:00:00.000Z",
+                      "description": "Start time in ISO 8601 format"
+                    },
+                    {
+                      "key": "endTime",
+                      "value": "2024-01-31T23:59:59.999Z",
+                      "description": "End time in ISO 8601 format"
+                    }
+                  ]
+                },
+                "description": "Get deals within a time range"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Deals by Ticket",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/deals/ticket/:ticket",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "deals",
+                    "ticket",
+                    ":ticket"
+                  ],
+                  "variable": [
+                    {
+                      "key": "ticket",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Get deals by ticket number"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Market Data",
+          "item": [
+            {
+              "name": "Get Symbols",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/symbols",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "symbols"
+                  ]
+                },
+                "description": "Get list of available trading symbols"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Symbol Specification",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/symbols/:symbol/specification",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "symbols",
+                    ":symbol",
+                    "specification"
+                  ],
+                  "variable": [
+                    {
+                      "key": "symbol",
+                      "value": "EURUSD"
+                    }
+                  ]
+                },
+                "description": "Get specification for a specific symbol"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Current Price",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/symbols/:symbol/price",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "symbols",
+                    ":symbol",
+                    "price"
+                  ],
+                  "variable": [
+                    {
+                      "key": "symbol",
+                      "value": "EURUSD"
+                    }
+                  ]
+                },
+                "description": "Get current price for a symbol"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Candles",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/symbols/:symbol/candles?timeframe=1h",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "symbols",
+                    ":symbol",
+                    "candles"
+                  ],
+                  "query": [
+                    {
+                      "key": "timeframe",
+                      "value": "1h",
+                      "description": "Timeframe: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "key": "symbol",
+                      "value": "EURUSD"
+                    }
+                  ]
+                },
+                "description": "Get candle data for a symbol"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Ticks",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/symbols/:symbol/ticks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "symbols",
+                    ":symbol",
+                    "ticks"
+                  ],
+                  "variable": [
+                    {
+                      "key": "symbol",
+                      "value": "EURUSD"
+                    }
+                  ]
+                },
+                "description": "Get tick data for a symbol"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Order Book",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/symbols/:symbol/order-book",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "symbols",
+                    ":symbol",
+                    "order-book"
+                  ],
+                  "variable": [
+                    {
+                      "key": "symbol",
+                      "value": "EURUSD"
+                    }
+                  ]
+                },
+                "description": "Get order book for a symbol"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Trade Execution",
+          "item": [
+            {
+              "name": "Execute Trade - Market Buy",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"actionType\": \"ORDER_TYPE_BUY\",\n  \"symbol\": \"EURUSD\",\n  \"volume\": 0.01,\n  \"stopLoss\": 1.0800,\n  \"takeProfit\": 1.1000,\n  \"comment\": \"Test market buy order\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/trade",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "trade"
+                  ]
+                },
+                "description": "Execute a market buy order"
+              },
+              "response": []
+            },
+            {
+              "name": "Execute Trade - Market Sell",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"actionType\": \"ORDER_TYPE_SELL\",\n  \"symbol\": \"EURUSD\",\n  \"volume\": 0.01,\n  \"stopLoss\": 1.1200,\n  \"takeProfit\": 1.1000,\n  \"comment\": \"Test market sell order\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/trade",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "trade"
+                  ]
+                },
+                "description": "Execute a market sell order"
+              },
+              "response": []
+            },
+            {
+              "name": "Execute Trade - Limit Order",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"actionType\": \"ORDER_TYPE_BUY_LIMIT\",\n  \"symbol\": \"EURUSD\",\n  \"volume\": 0.01,\n  \"openPrice\": 1.0950,\n  \"stopLoss\": 1.0900,\n  \"takeProfit\": 1.1050,\n  \"comment\": \"Test limit order\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/trade",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "trade"
+                  ]
+                },
+                "description": "Execute a limit order"
+              },
+              "response": []
+            },
+            {
+              "name": "Close Position",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"actionType\": \"POSITION_CLOSE_ID\",\n  \"positionId\": \"12345678\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/trade",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "trade"
+                  ]
+                },
+                "description": "Close a position by ID"
+              },
+              "response": []
+            },
+            {
+              "name": "Modify Position",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"actionType\": \"POSITION_MODIFY\",\n  \"positionId\": \"12345678\",\n  \"stopLoss\": 1.0850,\n  \"takeProfit\": 1.1050\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/trade",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "trade"
+                  ]
+                },
+                "description": "Modify stop loss and take profit for a position"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Margin Calculation",
+          "item": [
+            {
+              "name": "Calculate Margin",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/margin?symbol=EURUSD&type=ORDER_TYPE_BUY&volume=0.01",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "margin"
+                  ],
+                  "query": [
+                    {
+                      "key": "symbol",
+                      "value": "EURUSD",
+                      "description": "Trading symbol"
+                    },
+                    {
+                      "key": "type",
+                      "value": "ORDER_TYPE_BUY",
+                      "description": "Order type"
+                    },
+                    {
+                      "key": "volume",
+                      "value": "0.01",
+                      "description": "Trade volume in lots"
+                    }
+                  ]
+                },
+                "description": "Calculate margin requirements for a trade"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ]
+}

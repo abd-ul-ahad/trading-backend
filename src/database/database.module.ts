@@ -10,7 +10,7 @@ import { RealTimeStrategy } from './models/real-time-strategy.model';
 
 /**
  * Database module that configures Sequelize ORM for PostgreSQL
- * 
+ *
  * Features:
  * - Connection pooling (min: 5, max: 20 connections)
  * - Environment-based query logging
@@ -33,7 +33,14 @@ import { RealTimeStrategy } from './models/real-time-strategy.model';
 
         // Register models with Sequelize
         // This makes them available for dependency injection in services and controllers
-        config.models = [Trade, AccountPerformance, StrategyPerformance, RealTimeTrade, RealTimeAccount, RealTimeStrategy];
+        config.models = [
+          Trade,
+          AccountPerformance,
+          StrategyPerformance,
+          RealTimeTrade,
+          RealTimeAccount,
+          RealTimeStrategy,
+        ];
 
         return config;
       },

@@ -10,13 +10,13 @@ import {
 
 /**
  * Abstract base model providing common fields for all database models
- * 
+ *
  * Features:
  * - UUID primary key with automatic UUIDV4 generation
  * - Automatic timestamp management (createdAt, updatedAt)
- * 
+ *
  * All models should extend this class to inherit these common fields
- * 
+ *
  * Requirements: 3.1, 3.2, 4.1
  */
 export abstract class BaseModel extends Model {

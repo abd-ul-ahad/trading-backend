@@ -8,10 +8,10 @@ import {
 
 /**
  * RealTimeStrategy model representing live strategy monitoring data
- * 
+ *
  * Stores only the most recent state for each strategy (single row per strategy).
  * Automatically synchronized from the strategy_performance table via PostgreSQL triggers.
- * 
+ *
  * Features:
  * - UUID primary key (strategy_id)
  * - Single row per strategy (upsert pattern)
@@ -20,7 +20,7 @@ import {
  * - Automatic synchronization via PostgreSQL triggers
  * - Read-only from application perspective (managed by triggers)
  * - Extends Model directly (not BaseModel) since it uses strategy_id as PK and doesn't have standard timestamps
- * 
+ *
  * Requirements: 11.6, 11.7
  */
 @Table({

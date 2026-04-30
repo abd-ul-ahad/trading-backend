@@ -1,16 +1,12 @@
-import {
-  Table,
-  Column,
-  DataType,
-} from 'sequelize-typescript';
+import { Table, Column, DataType } from 'sequelize-typescript';
 import { BaseModel } from './base.model';
 
 /**
  * StrategyPerformance model representing historical strategy performance snapshots
- * 
+ *
  * Stores intraday and end-of-day snapshots of strategy-level performance metrics.
  * Automatically synchronized to real_time_strategies table via PostgreSQL triggers.
- * 
+ *
  * Features:
  * - UUID primary key (id from BaseModel)
  * - Integer counters for trade statistics
@@ -19,7 +15,7 @@ import { BaseModel } from './base.model';
  * - Decimal precision for drawdown metrics (10, 4)
  * - Automatic timestamp management via triggers (last_updated)
  * - Soft delete support (inherited from BaseModel)
- * 
+ *
  * Requirements: 11.3, 11.7
  */
 @Table({

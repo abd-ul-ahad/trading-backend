@@ -1,6 +1,6 @@
 /**
  * Barrel export for database models
- * 
+ *
  * Provides centralized export point for all Sequelize models
  * Requirements: 1.6
  */
