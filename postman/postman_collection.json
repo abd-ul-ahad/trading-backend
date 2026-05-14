@@ -948,6 +948,50 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Analytics",
+          "item": [
+            {
+              "name": "Get Account Analytics",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/trading/accounts/:accountId/analytics?startDate=2024-04-01T00:00:00.000Z&endDate=2024-05-06T23:59:59.999Z",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "trading",
+                    "accounts",
+                    ":accountId",
+                    "analytics"
+                  ],
+                  "query": [
+                    {
+                      "key": "startDate",
+                      "value": "2024-04-01T00:00:00.000Z",
+                      "description": "Start date in ISO 8601 format"
+                    },
+                    {
+                      "key": "endDate",
+                      "value": "2024-05-06T23:59:59.999Z",
+                      "description": "End date in ISO 8601 format"
+                    },
+                    {
+                      "key": "strategyId",
+                      "value": "",
+                      "description": "Optional strategy ID to filter analytics",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Get account analytics including trade count, returns, and drawdown metrics for a specific time period"
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }

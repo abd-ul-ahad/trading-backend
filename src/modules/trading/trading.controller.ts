@@ -8,11 +8,13 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { TradingService } from './trading.service';
+import { AnalyticsService } from './analytics.service';
 import {
   TradeDto,
   TimeRangeQueryDto,
   CandlesQueryDto,
   MarginQueryDto,
+  AnalyticsQueryDto,
 } from './dto';
 import {
   AccountInformation,
@@ -30,11 +32,15 @@ import {
   MarginResult,
   CpuCredits,
 } from '../../integrations/metaapi/interfaces';
+import { AnalyticsResponse } from './interfaces';
 
 @ApiTags('Trading')
 @Controller('trading')
 export class TradingController {
-  constructor(private readonly tradingService: TradingService) {}
+  constructor(
+    private readonly tradingService: TradingService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   // ==================== Account Information Endpoints ====================
 
@@ -528,5 +534,55 @@ export class TradingController {
     @Query() query: MarginQueryDto,
   ): Promise<MarginResult> {
     return this.tradingService.calculateMargin(accountId, query);
+  }
+
+  // ==================== Analytics Endpoint ====================
+
+  @Get('accounts/:accountId/analytics')
+  @ApiOperation({ summary: 'Get account analytics and statistics' })
+  @ApiParam({
+    name: 'accountId',
+    description: 'MetaAPI account ID',
+    example: 'abc123',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    description: 'Start date in ISO 8601 format',
+    example: '2024-04-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    description: 'End date in ISO 8601 format',
+    example: '2024-05-06T23:59:59.999Z',
+  })
+  @ApiQuery({
+    name: 'strategyId',
+    description: 'Optional strategy ID to filter analytics',
+    required: false,
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Analytics retrieved successfully',
+    type: AnalyticsResponse,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid date range (startDate must be before endDate)',
+  })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getAccountAnalytics(
+    @Param('accountId') accountId: string,
+    @Query() query: AnalyticsQueryDto,
+  ): Promise<AnalyticsResponse> {
+    const startDate = new Date(query.startDate);
+    const endDate = new Date(query.endDate);
+    return this.analyticsService.getAccountAnalytics(
+      accountId,
+      startDate,
+      endDate,
+      query.strategyId,
+    );
   }
 }
