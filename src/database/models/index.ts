@@ -12,3 +12,7 @@ export { StrategyPerformance } from './strategy-performance.model';
 export { RealTimeTrade } from './real-time-trade.model';
 export { RealTimeAccount } from './real-time-account.model';
 export { RealTimeStrategy } from './real-time-strategy.model';
+export { User } from './user.model';
+export { Strategy } from './strategy.model';
+export { BrokerAccount } from './broker-account.model';
+export { UserStrategySubscription } from './user-strategy-subscription.model';
