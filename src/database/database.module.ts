@@ -7,10 +7,6 @@ import { StrategyPerformance } from './models/strategy-performance.model';
 import { RealTimeTrade } from './models/real-time-trade.model';
 import { RealTimeAccount } from './models/real-time-account.model';
 import { RealTimeStrategy } from './models/real-time-strategy.model';
-import { User } from './models/user.model';
-import { Strategy } from './models/strategy.model';
-import { BrokerAccount } from './models/broker-account.model';
-import { UserStrategySubscription } from './models/user-strategy-subscription.model';
 
 /**
  * Database module that configures Sequelize ORM for PostgreSQL
@@ -44,10 +40,6 @@ import { UserStrategySubscription } from './models/user-strategy-subscription.mo
           RealTimeTrade,
           RealTimeAccount,
           RealTimeStrategy,
-          User,
-          Strategy,
-          BrokerAccount,
-          UserStrategySubscription,
         ];
 
         return config;
