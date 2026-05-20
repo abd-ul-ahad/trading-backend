@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { ProvisioningModule } from './modules/provisioning/provisioning.module';
 import { TradingModule } from './modules/trading/trading.module';
+import { StrategyModule } from './modules/strategy/strategy.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TradingModule } from './modules/trading/trading.module';
     DatabaseModule,
     ProvisioningModule,
     TradingModule,
+    StrategyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

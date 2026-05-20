@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { DatabaseConfigService } from '../config/database.config';
 import { Trade } from './models/trade.model';
+import { Strategy } from './models/strategy.model';
 import { AccountPerformance } from './models/account-performance.model';
 import { StrategyPerformance } from './models/strategy-performance.model';
 import { RealTimeTrade } from './models/real-time-trade.model';
@@ -35,6 +36,7 @@ import { RealTimeStrategy } from './models/real-time-strategy.model';
         // This makes them available for dependency injection in services and controllers
         config.models = [
           Trade,
+          Strategy,
           AccountPerformance,
           StrategyPerformance,
           RealTimeTrade,
