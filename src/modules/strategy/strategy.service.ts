@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Strategy } from '../../database/models/strategy.model';
 import { Trade } from '../../database/models/trade.model';
@@ -73,7 +78,9 @@ export class StrategyService {
         order: [['createdAt', 'DESC']],
       });
     } catch (error) {
-      this.logger.error(`Failed to fetch strategies for account ${accountId}: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch strategies for account ${accountId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -157,7 +164,8 @@ export class StrategyService {
       });
 
       // Get latest real-time strategy data
-      const realTimeData = await this.realTimeStrategyModel.findByPk(strategyId);
+      const realTimeData =
+        await this.realTimeStrategyModel.findByPk(strategyId);
 
       // Calculate performance metrics
       const totalTrades = trades.length;
@@ -191,7 +199,9 @@ export class StrategyService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Failed to get performance for strategy ${strategyId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get performance for strategy ${strategyId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -199,7 +209,9 @@ export class StrategyService {
   /**
    * Get public summary for a strategy (no capital info)
    */
-  async getPublicSummary(strategyId: string): Promise<PublicStrategySummaryDto> {
+  async getPublicSummary(
+    strategyId: string,
+  ): Promise<PublicStrategySummaryDto> {
     try {
       const strategy = await this.findById(strategyId);
       const performance = await this.getPerformance(strategyId);
@@ -217,7 +229,9 @@ export class StrategyService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Failed to get public summary for strategy ${strategyId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get public summary for strategy ${strategyId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -251,7 +265,9 @@ export class StrategyService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Failed to get trades for strategy ${strategyId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get trades for strategy ${strategyId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -292,7 +308,9 @@ export class StrategyService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Failed to get equity curve for strategy ${strategyId}: ${error.message}`);
+      this.logger.error(
+        `Failed to get equity curve for strategy ${strategyId}: ${error.message}`,
+      );
       throw error;
     }
   }

@@ -86,9 +86,9 @@ describe('TradingController', () => {
       const error = new Error('Account not found');
       jest.spyOn(service, 'getAccountInformation').mockRejectedValue(error);
 
-      await expect(
-        controller.getAccountInformation(accountId),
-      ).rejects.toThrow('Account not found');
+      await expect(controller.getAccountInformation(accountId)).rejects.toThrow(
+        'Account not found',
+      );
     });
   });
 
@@ -230,7 +230,7 @@ describe('TradingController', () => {
           symbol: 'EURUSD',
           type: 'ORDER_TYPE_BUY_LIMIT',
           volume: 0.01,
-          openPrice: 1.1200,
+          openPrice: 1.12,
           currentPrice: 1.1234,
           state: 'ORDER_STATE_PLACED',
         },
@@ -265,7 +265,7 @@ describe('TradingController', () => {
         symbol: 'EURUSD',
         type: 'ORDER_TYPE_BUY_LIMIT',
         volume: 0.01,
-        openPrice: 1.1200,
+        openPrice: 1.12,
         currentPrice: 1.1234,
         state: 'ORDER_STATE_PLACED',
       };
@@ -381,9 +381,7 @@ describe('TradingController', () => {
       const accountId = 'test-account-123';
       const ticket = '12345678';
       const error = new Error('Failed to get history orders by ticket');
-      jest
-        .spyOn(service, 'getHistoryOrdersByTicket')
-        .mockRejectedValue(error);
+      jest.spyOn(service, 'getHistoryOrdersByTicket').mockRejectedValue(error);
 
       await expect(
         controller.getHistoryOrdersByTicket(accountId, ticket),
@@ -412,9 +410,7 @@ describe('TradingController', () => {
         },
       ];
 
-      jest
-        .spyOn(service, 'getHistoryDealsByTime')
-        .mockResolvedValue(mockDeals);
+      jest.spyOn(service, 'getHistoryDealsByTime').mockResolvedValue(mockDeals);
 
       const result = await controller.getHistoryDealsByTime(accountId, query);
 
@@ -542,9 +538,9 @@ describe('TradingController', () => {
       const error = new Error('Symbol not found');
       jest.spyOn(service, 'getSymbolSpec').mockRejectedValue(error);
 
-      await expect(
-        controller.getSymbolSpec(accountId, symbol),
-      ).rejects.toThrow('Symbol not found');
+      await expect(controller.getSymbolSpec(accountId, symbol)).rejects.toThrow(
+        'Symbol not found',
+      );
     });
   });
 
@@ -591,8 +587,8 @@ describe('TradingController', () => {
           time: '2024-01-15T10:00:00.000Z',
           open: 1.1234,
           high: 1.1244,
-          low: 1.1230,
-          close: 1.1240,
+          low: 1.123,
+          close: 1.124,
           tickVolume: 1000,
         },
       ];
@@ -698,8 +694,8 @@ describe('TradingController', () => {
         actionType: 'ORDER_TYPE_BUY',
         symbol: 'EURUSD',
         volume: 0.01,
-        stopLoss: 1.1200,
-        takeProfit: 1.1300,
+        stopLoss: 1.12,
+        takeProfit: 1.13,
       };
       const mockResult = {
         numericCode: 10009,

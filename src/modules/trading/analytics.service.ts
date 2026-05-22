@@ -64,16 +64,19 @@ export class AnalyticsService {
     };
 
     // Get latest account performance snapshot in the period
-    const latestAccountPerformance = await this.accountPerformanceModel.findOne({
-      where: performanceWhereClause,
-      order: [['timestamp', 'DESC']],
-    });
+    const latestAccountPerformance = await this.accountPerformanceModel.findOne(
+      {
+        where: performanceWhereClause,
+        order: [['timestamp', 'DESC']],
+      },
+    );
 
     // Get earliest account performance snapshot for baseline
-    const earliestAccountPerformance = await this.accountPerformanceModel.findOne({
-      where: performanceWhereClause,
-      order: [['timestamp', 'ASC']],
-    });
+    const earliestAccountPerformance =
+      await this.accountPerformanceModel.findOne({
+        where: performanceWhereClause,
+        order: [['timestamp', 'ASC']],
+      });
 
     // Calculate realized and unrealized PnL
     const realizedPnL = latestAccountPerformance
@@ -143,13 +146,12 @@ export class AnalyticsService {
       }
 
       // Find max drawdown in the period
-      const allPerformanceSnapshots = await this.accountPerformanceModel.findAll(
-        {
+      const allPerformanceSnapshots =
+        await this.accountPerformanceModel.findAll({
           where: performanceWhereClause,
           attributes: ['drawdown', 'timestamp'],
           order: [['drawdown', 'ASC']], // Most negative value first
-        },
-      );
+        });
 
       if (allPerformanceSnapshots.length > 0) {
         const maxDrawdownSnapshot = allPerformanceSnapshots[0];

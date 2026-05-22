@@ -139,7 +139,9 @@ describe('StrategyService', () => {
         initial_capital: 10000,
       };
 
-      jest.spyOn(strategyModel, 'create').mockRejectedValue(new Error('Database error'));
+      jest
+        .spyOn(strategyModel, 'create')
+        .mockRejectedValue(new Error('Database error'));
 
       await expect(service.create(dto)).rejects.toThrow('Database error');
     });
@@ -158,7 +160,9 @@ describe('StrategyService', () => {
     });
 
     it('should handle errors', async () => {
-      jest.spyOn(strategyModel, 'findAll').mockRejectedValue(new Error('Database error'));
+      jest
+        .spyOn(strategyModel, 'findAll')
+        .mockRejectedValue(new Error('Database error'));
 
       await expect(service.findAll()).rejects.toThrow('Database error');
     });
@@ -180,9 +184,13 @@ describe('StrategyService', () => {
 
     it('should handle errors', async () => {
       const accountId = '550e8400-e29b-41d4-a716-446655440001';
-      jest.spyOn(strategyModel, 'findAll').mockRejectedValue(new Error('Database error'));
+      jest
+        .spyOn(strategyModel, 'findAll')
+        .mockRejectedValue(new Error('Database error'));
 
-      await expect(service.findByAccountId(accountId)).rejects.toThrow('Database error');
+      await expect(service.findByAccountId(accountId)).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -206,7 +214,9 @@ describe('StrategyService', () => {
 
     it('should handle errors', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
-      jest.spyOn(strategyModel, 'findByPk').mockRejectedValue(new Error('Database error'));
+      jest
+        .spyOn(strategyModel, 'findByPk')
+        .mockRejectedValue(new Error('Database error'));
 
       await expect(service.findById(id)).rejects.toThrow('Database error');
     });
@@ -221,7 +231,9 @@ describe('StrategyService', () => {
       };
 
       const updateMockStrategy = { ...mockStrategy };
-      jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(updateMockStrategy);
+      jest
+        .spyOn(strategyModel, 'findByPk')
+        .mockResolvedValue(updateMockStrategy);
 
       const result = await service.update(id, dto);
 
@@ -244,7 +256,9 @@ describe('StrategyService', () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
       const dto: UpdateStrategyDto = { name: 'Updated' };
 
-      jest.spyOn(strategyModel, 'findByPk').mockRejectedValue(new Error('Database error'));
+      jest
+        .spyOn(strategyModel, 'findByPk')
+        .mockRejectedValue(new Error('Database error'));
 
       await expect(service.update(id, dto)).rejects.toThrow('Database error');
     });
@@ -272,7 +286,9 @@ describe('StrategyService', () => {
     it('should handle errors', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
 
-      jest.spyOn(strategyModel, 'findByPk').mockRejectedValue(new Error('Database error'));
+      jest
+        .spyOn(strategyModel, 'findByPk')
+        .mockRejectedValue(new Error('Database error'));
 
       await expect(service.delete(id)).rejects.toThrow('Database error');
     });
@@ -284,7 +300,9 @@ describe('StrategyService', () => {
 
       jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(mockStrategy);
       jest.spyOn(tradeModel, 'findAll').mockResolvedValue([mockTrade]);
-      jest.spyOn(realTimeStrategyModel, 'findByPk').mockResolvedValue(mockRealTimeStrategy);
+      jest
+        .spyOn(realTimeStrategyModel, 'findByPk')
+        .mockResolvedValue(mockRealTimeStrategy);
 
       const result = await service.getPerformance(id);
 
@@ -301,7 +319,9 @@ describe('StrategyService', () => {
 
       jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(null);
 
-      await expect(service.getPerformance(id)).rejects.toThrow(NotFoundException);
+      await expect(service.getPerformance(id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should handle missing real-time data', async () => {
@@ -324,9 +344,13 @@ describe('StrategyService', () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
       const freshMockStrategy = { ...mockStrategy };
 
-      jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(freshMockStrategy);
+      jest
+        .spyOn(strategyModel, 'findByPk')
+        .mockResolvedValue(freshMockStrategy);
       jest.spyOn(tradeModel, 'findAll').mockResolvedValue([mockTrade]);
-      jest.spyOn(realTimeStrategyModel, 'findByPk').mockResolvedValue(mockRealTimeStrategy);
+      jest
+        .spyOn(realTimeStrategyModel, 'findByPk')
+        .mockResolvedValue(mockRealTimeStrategy);
 
       const result = await service.getPublicSummary(id);
 
@@ -346,7 +370,9 @@ describe('StrategyService', () => {
 
       jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(null);
 
-      await expect(service.getPublicSummary(id)).rejects.toThrow(NotFoundException);
+      await expect(service.getPublicSummary(id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -410,7 +436,9 @@ describe('StrategyService', () => {
       };
 
       jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(mockStrategy);
-      jest.spyOn(strategyPerformanceModel, 'findAll').mockResolvedValue([mockPerformance]);
+      jest
+        .spyOn(strategyPerformanceModel, 'findAll')
+        .mockResolvedValue([mockPerformance]);
 
       const result = await service.getEquityCurve(id, 30);
 
@@ -425,7 +453,9 @@ describe('StrategyService', () => {
 
       jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(null);
 
-      await expect(service.getEquityCurve(id)).rejects.toThrow(NotFoundException);
+      await expect(service.getEquityCurve(id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

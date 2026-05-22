@@ -163,7 +163,9 @@ describe('StrategyController', () => {
       const error = new Error('Fetch failed');
       jest.spyOn(service, 'findByAccountId').mockRejectedValue(error);
 
-      await expect(controller.findByAccountId(accountId)).rejects.toThrow('Fetch failed');
+      await expect(controller.findByAccountId(accountId)).rejects.toThrow(
+        'Fetch failed',
+      );
     });
   });
 
@@ -183,7 +185,9 @@ describe('StrategyController', () => {
       const error = new Error('Strategy not found');
       jest.spyOn(service, 'findById').mockRejectedValue(error);
 
-      await expect(controller.findById(id)).rejects.toThrow('Strategy not found');
+      await expect(controller.findById(id)).rejects.toThrow(
+        'Strategy not found',
+      );
     });
   });
 
@@ -248,7 +252,9 @@ describe('StrategyController', () => {
       const error = new Error('Performance fetch failed');
       jest.spyOn(service, 'getPerformance').mockRejectedValue(error);
 
-      await expect(controller.getPerformance(id)).rejects.toThrow('Performance fetch failed');
+      await expect(controller.getPerformance(id)).rejects.toThrow(
+        'Performance fetch failed',
+      );
     });
   });
 
@@ -285,7 +291,9 @@ describe('StrategyController', () => {
       const error = new Error('Trades fetch failed');
       jest.spyOn(service, 'getTrades').mockRejectedValue(error);
 
-      await expect(controller.getTrades(id)).rejects.toThrow('Trades fetch failed');
+      await expect(controller.getTrades(id)).rejects.toThrow(
+        'Trades fetch failed',
+      );
     });
   });
 
@@ -315,14 +323,18 @@ describe('StrategyController', () => {
       const error = new Error('Equity curve fetch failed');
       jest.spyOn(service, 'getEquityCurve').mockRejectedValue(error);
 
-      await expect(controller.getEquityCurve(id)).rejects.toThrow('Equity curve fetch failed');
+      await expect(controller.getEquityCurve(id)).rejects.toThrow(
+        'Equity curve fetch failed',
+      );
     });
   });
 
   describe('getPublicSummary', () => {
     it('should return public summary without capital info', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
-      jest.spyOn(service, 'getPublicSummary').mockResolvedValue(mockPublicSummary);
+      jest
+        .spyOn(service, 'getPublicSummary')
+        .mockResolvedValue(mockPublicSummary);
 
       const result = await controller.getPublicSummary(id);
 
@@ -338,7 +350,9 @@ describe('StrategyController', () => {
       const error = new Error('Public summary fetch failed');
       jest.spyOn(service, 'getPublicSummary').mockRejectedValue(error);
 
-      await expect(controller.getPublicSummary(id)).rejects.toThrow('Public summary fetch failed');
+      await expect(controller.getPublicSummary(id)).rejects.toThrow(
+        'Public summary fetch failed',
+      );
     });
   });
 });
