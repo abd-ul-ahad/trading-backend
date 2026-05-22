@@ -7,7 +7,7 @@ import { SequelizeModuleOptions } from '@nestjs/sequelize';
  * Supports three environments:
  * - Development: PostgreSQL with console logging
  * - Test: PostgreSQL with separate test database
- * - Production: PostgreSQL with SSL and connection pooling
+ * - Production: PostgreSQL with connection pooling
  */
 @Injectable()
 export class DatabaseConfigService {
@@ -63,7 +63,7 @@ export class DatabaseConfigService {
   }
 
   /**
-   * Production configuration with SSL and connection pooling
+   * Production configuration with connection pooling
    */
   getProductionConfig(): SequelizeModuleOptions {
     this.validateProductionEnvVars();
@@ -73,6 +73,9 @@ export class DatabaseConfigService {
     const username = process.env.DB_USERNAME;
     const password = process.env.DB_PASSWORD;
     const database = process.env.DB_DATABASE;
+
+    const poolMax = parseInt(process.env.DB_POOL_MAX || '5', 10);
+    const poolMin = parseInt(process.env.DB_POOL_MIN || '0', 10);
 
     return {
       dialect: 'postgres',
@@ -85,17 +88,11 @@ export class DatabaseConfigService {
       autoLoadModels: true,
       synchronize: false,
       pool: {
-        max: 20,
-        min: 5,
+        max: poolMax,
+        min: poolMin,
         acquire: 30000,
         idle: 10000,
         evict: 10000,
-      },
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false,
-        },
       },
     };
   }

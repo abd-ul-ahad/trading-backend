@@ -1,0 +1,90 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: oriviax_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 95bcqr1194
+      POSTGRES_DB: oriviax_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c effective_cache_size=256MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=30
+      -c wal_buffers=4MB
+      -c checkpoint_completion_target=0.9
+      -c synchronous_commit=off
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+    networks:
+      - app_net
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oriviax_migrate
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      NODE_ENV: production
+      DB_POOL_MAX: '3'
+      DB_POOL_MIN: '0'
+    command: npx sequelize-cli db:migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_net
+    deploy:
+      restart_policy:
+        condition: none
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oriviax_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      NODE_ENV: production
+      PORT: '5000'
+      DB_POOL_MAX: '5'
+      DB_POOL_MIN: '0'
+    ports:
+      - '5000:5000'
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    networks:
+      - app_net
+
+volumes:
+  pgdata:
+
+networks:
+  app_net:
+    driver: bridge

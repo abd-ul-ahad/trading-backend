@@ -13,7 +13,7 @@ import { RealTimeStrategy } from './models/real-time-strategy.model';
  * Database module that configures Sequelize ORM for PostgreSQL
  *
  * Features:
- * - Connection pooling (min: 5, max: 20 connections)
+ * - Connection pooling (configurable via DB_POOL_MIN / DB_POOL_MAX)
  * - Environment-based query logging
  * - 30-second query timeout
  * - Model registration (User, Post)
