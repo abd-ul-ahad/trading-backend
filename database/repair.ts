@@ -1,32 +1,53 @@
 /**
  * Repair tool: re-syncs SequelizeMeta against the live database.
  *
- * Why this exists: if a migration failed mid-way before transactions were
- * introduced (or the SequelizeMeta table was wiped), the DB can hold objects
- * that aren't recorded as "applied". Sequelize then keeps trying to re-create
- * them and fails on duplicate-relation errors.
+ * Why this exists
+ * ---------------
+ * Two failure modes can leave SequelizeMeta out of sync with the real schema:
  *
- * What it does (data-safe):
- *   1. Connects using the same env vars the app uses (DB_HOST, DB_USERNAME, ...).
+ *   1. A migration crashed mid-way before transactions were introduced, so DB
+ *      objects exist but the migration is not marked as applied.
+ *   2. A previous version of this repair script inserted rows WITHOUT the
+ *      ".ts" file extension. sequelize-cli (via umzug) stores migrations as
+ *      `path.basename(diskFile)` (e.g. "20240115110000-create-strategies-
+ *      table.ts") and compares pending migrations by that exact string. A bare
+ *      name in SequelizeMeta therefore does NOT match the on-disk filename, so
+ *      `db:migrate` re-runs the migration and crashes on duplicate objects
+ *      (e.g. `relation "strategies_account_id" already exists`).
+ *
+ * What this script does (data-safe)
+ * ---------------------------------
+ *   1. Connects with the app's DB env vars.
  *   2. Ensures SequelizeMeta exists.
- *   3. For each known migration, checks the DB for the object it creates
- *      (table name, function name, etc.).
- *   4. If the object exists and the migration is NOT already recorded as
- *      applied, inserts the migration name into SequelizeMeta.
- *   5. Prints a per-migration report.
+ *   3. For each known migration:
+ *        - Resolves its real on-disk filename (e.g. ".ts" or ".js").
+ *        - Treats it as "tracked" if EITHER the bare name OR the full filename
+ *          is present in SequelizeMeta.
+ *        - If only the bare name is present, upgrades it: inserts the full
+ *          filename and removes the bare-name row.
+ *        - If neither is present but the migration's DB object exists, inserts
+ *          the full filename (this heals point 1 above).
+ *   4. Reports unknown rows (entries in SequelizeMeta that don't match any
+ *      known migration). These are NEVER deleted - operators must inspect
+ *      them manually.
  *
  * After repair, `npm run db:migrate` will only run truly pending migrations.
  *
- * Usage:
+ * Usage
  *   npm run db:migrate:repair
  */
 
 import 'dotenv/config';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Sequelize, QueryTypes } from 'sequelize';
 
 interface MigrationFingerprint {
+  /** Bare migration name (no extension). Must match an on-disk file basename. */
   name: string;
+  /** Human-readable description of the DB object the migration creates. */
   description: string;
+  /** Predicate that returns true if the migration's effect is visible in the DB. */
   check: (sequelize: Sequelize) => Promise<boolean>;
 }
 
@@ -88,6 +109,7 @@ const columnAbsent =
   };
 
 // Ordered list of every known migration and how to detect it in the DB.
+// `name` MUST match the migration filename minus its extension.
 const MIGRATIONS: MigrationFingerprint[] = [
   {
     name: '20240115110000-create-strategies-table',
@@ -154,6 +176,28 @@ const MIGRATIONS: MigrationFingerprint[] = [
   },
 ];
 
+/**
+ * Scans `database/migrations` and returns a map of bare migration name
+ * (filename minus extension) -> actual filename including extension.
+ *
+ * This is the SAME basename sequelize-cli/umzug uses as the SequelizeMeta key
+ * (see node_modules/umzug/lib/migration.js -> `this.file = path.basename(...)`).
+ */
+function discoverMigrationFiles(): Map<string, string> {
+  const migrationsDir = path.resolve(__dirname, 'migrations');
+  const files = fs.readdirSync(migrationsDir);
+  const validPattern = /^\d+[\w-]+\.(js|ts|cjs|cts)$/;
+
+  const map = new Map<string, string>();
+  for (const file of files) {
+    if (file.endsWith('.d.ts')) continue;
+    if (!validPattern.test(file)) continue;
+    const bare = file.replace(/\.(js|ts|cjs|cts)$/, '');
+    map.set(bare, file);
+  }
+  return map;
+}
+
 function buildSequelize(): Sequelize {
   const database = process.env.DB_DATABASE;
   const username = process.env.DB_USERNAME;
@@ -196,6 +240,13 @@ async function recordMigration(sequelize: Sequelize, name: string): Promise<void
   );
 }
 
+async function deleteMetaRow(sequelize: Sequelize, name: string): Promise<void> {
+  await sequelize.query(`DELETE FROM "SequelizeMeta" WHERE "name" = $1`, {
+    bind: [name],
+    type: QueryTypes.DELETE,
+  });
+}
+
 async function main(): Promise<void> {
   const sequelize = buildSequelize();
 
@@ -207,43 +258,116 @@ async function main(): Promise<void> {
 
     await ensureSequelizeMetaTable(sequelize);
     const applied = await readAppliedMigrations(sequelize);
+    const filesOnDisk = discoverMigrationFiles();
 
-    console.log(`SequelizeMeta currently tracks ${applied.size} migration(s).\n`);
+    console.log(`SequelizeMeta currently tracks ${applied.size} migration(s).`);
+    console.log(`Found ${filesOnDisk.size} migration file(s) on disk.\n`);
     console.log('Scanning migrations:');
 
+    let okTracked = 0;
     let repaired = 0;
-    let alreadyTracked = 0;
+    let upgraded = 0;
     let stillPending = 0;
+    const knownNames = new Set<string>();
 
     for (const migration of MIGRATIONS) {
-      const isTracked = applied.has(migration.name);
-      const objectExists = await migration.check(sequelize);
-
-      if (isTracked) {
-        console.log(`  [=] ${migration.name}  (already tracked)`);
-        alreadyTracked++;
+      const diskFile = filesOnDisk.get(migration.name);
+      if (!diskFile) {
+        console.log(
+          `  [!] ${migration.name}  (file missing on disk - skipping)`,
+        );
         continue;
       }
 
-      if (objectExists) {
-        await recordMigration(sequelize, migration.name);
+      knownNames.add(migration.name);
+      knownNames.add(diskFile);
+
+      const hasBare = applied.has(migration.name);
+      const hasFull = applied.has(diskFile);
+
+      // Case 1: Correct row already present.
+      if (hasFull) {
+        if (hasBare) {
+          // Legacy bare-name duplicate left over from a previous broken repair.
+          // Safe to remove because the canonical (with-extension) row is in place.
+          await deleteMetaRow(sequelize, migration.name);
+          applied.delete(migration.name);
+          console.log(
+            `  [~] ${diskFile}  (already tracked; removed legacy bare-name duplicate)`,
+          );
+          upgraded++;
+        } else {
+          console.log(`  [=] ${diskFile}  (already tracked)`);
+        }
+        okTracked++;
+        continue;
+      }
+
+      // Case 2: Only the bare-name row exists. Upgrade it to the full filename
+      // so sequelize-cli stops treating the migration as pending.
+      if (hasBare) {
+        await recordMigration(sequelize, diskFile);
+        await deleteMetaRow(sequelize, migration.name);
+        applied.add(diskFile);
+        applied.delete(migration.name);
         console.log(
-          `  [+] ${migration.name}  (repaired - ${migration.description} found in DB)`,
+          `  [^] ${diskFile}  (upgraded - bare-name row replaced with full filename)`,
+        );
+        upgraded++;
+        okTracked++;
+        continue;
+      }
+
+      // Case 3: Nothing recorded. If the DB object exists, the migration ran
+      // outside of sequelize-cli's tracking - record it now.
+      const objectExists = await migration.check(sequelize);
+      if (objectExists) {
+        await recordMigration(sequelize, diskFile);
+        applied.add(diskFile);
+        console.log(
+          `  [+] ${diskFile}  (repaired - ${migration.description} found in DB)`,
         );
         repaired++;
+        okTracked++;
         continue;
       }
 
       console.log(
-        `  [ ] ${migration.name}  (pending - ${migration.description} not found)`,
+        `  [ ] ${diskFile}  (pending - ${migration.description} not found)`,
       );
       stillPending++;
     }
 
+    // Surface (but do NOT delete) any rows in SequelizeMeta that don't map to
+    // a known migration. Operators must decide what to do with them.
+    const unknown: string[] = [];
+    for (const name of applied) {
+      if (!knownNames.has(name)) {
+        // Some unknown entries may still correspond to on-disk files we haven't
+        // listed in MIGRATIONS - tolerate those silently.
+        const bare = name.replace(/\.(js|ts|cjs|cts)$/, '');
+        if (filesOnDisk.has(bare)) continue;
+        unknown.push(name);
+      }
+    }
+
     console.log('\nSummary:');
-    console.log(`  Already tracked: ${alreadyTracked}`);
-    console.log(`  Newly repaired:  ${repaired}`);
-    console.log(`  Still pending:   ${stillPending}`);
+    console.log(`  Tracked (after repair): ${okTracked}`);
+    console.log(`  Newly repaired:         ${repaired}`);
+    console.log(`  Upgraded bare->full:    ${upgraded}`);
+    console.log(`  Still pending:          ${stillPending}`);
+    console.log(`  Unknown rows kept:      ${unknown.length}`);
+
+    if (unknown.length > 0) {
+      console.log('\nUnknown rows in SequelizeMeta (left untouched):');
+      for (const name of unknown) {
+        console.log(`  - ${name}`);
+      }
+      console.log(
+        '\nIf these are obsolete, remove them manually with:\n  DELETE FROM "SequelizeMeta" WHERE "name" = \'<name>\';',
+      );
+    }
+
     console.log('\nNext step: npm run db:migrate\n');
   } finally {
     await sequelize.close();
