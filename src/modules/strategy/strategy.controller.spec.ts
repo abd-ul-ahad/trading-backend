@@ -329,7 +329,7 @@ describe('StrategyController', () => {
       process.env.NODE_ENV = 'development';
       const seedResult = [
         {
-          name: 'Seed: Momentum EUR/USD',
+          name: 'Momentum EUR/USD',
           strategyId: 'abc-123',
           snapshotsInserted: 10,
           tradesInserted: 13,

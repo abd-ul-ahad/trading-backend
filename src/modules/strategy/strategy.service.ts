@@ -377,7 +377,7 @@ export class StrategyService {
 
     const SEEDS: StrategySeed[] = [
       {
-        name: 'Seed: Momentum EUR/USD',
+        name: 'Momentum EUR/USD',
         accountId: '11111111-1111-1111-1111-111111111111',
         // Peak ratchets 0→320, then dips to 220 → max DD 100, current DD 100.
         pnlSeries: [0, 120, 180, 250, 200, 150, 280, 320, 290, 220],
@@ -398,7 +398,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Seed: Mean Reversion DAX',
+        name: 'Mean Reversion DAX',
         accountId: '22222222-2222-2222-2222-222222222222',
         // Smaller swings; ends at all-time peak so currentDrawdown is 0.
         // Peaks 80→100→110→130 → max DD 25 (100→75), current DD 0.

@@ -40,7 +40,11 @@ services:
       NODE_ENV: production
       DB_POOL_MAX: '3'
       DB_POOL_MIN: '0'
-    command: npx sequelize-cli db:migrate
+    # Repair SequelizeMeta first (idempotent; backfills tracking for any
+    # objects that already exist in the DB without records), then migrate.
+    # This is what unblocks deploys when production state has drifted from
+    # SequelizeMeta (e.g. orphan indexes from a previous failed run).
+    command: sh -c "npm run db:migrate:repair && npx sequelize-cli db:migrate"
     depends_on:
       db:
         condition: service_healthy
