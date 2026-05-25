@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Param,
   Post,
@@ -96,7 +95,7 @@ export class StrategyController {
   // ==================== Dev / Seed Endpoints ====================
 
   /**
-   * Seed deterministic demo data for local testing.
+   * Seed deterministic demo data.
    *
    * Wipes any prior strategies whose name matches a seed entry (and their
    * snapshots, trades, and real-time mirror rows), then creates fresh
@@ -104,7 +103,8 @@ export class StrategyController {
    * open, and cancelled trades. The sync triggers auto-populate the
    * `real_time_*` tables.
    *
-   * **Disabled in production** — returns 403 when `NODE_ENV === 'production'`.
+   * Enabled in all environments (including production). This endpoint is
+   * destructive for matching strategy names - operators must be aware.
    *
    * Optional body: `{ "dayOne": "YYYY-MM-DD" }` to override the day-1 anchor
    * (defaults to `2024-04-20` to match the client's reference).
@@ -113,11 +113,6 @@ export class StrategyController {
   async seedDevData(
     @Body() body?: { dayOne?: string },
   ): Promise<SeedResultDto[]> {
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException(
-        'Seed endpoint is disabled in production environments.',
-      );
-    }
     return this.strategyService.seedDevData(body?.dayOne);
   }
 }
