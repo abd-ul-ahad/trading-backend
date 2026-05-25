@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -14,6 +15,7 @@ import { StrategyResponseDto } from './dto/strategy-response.dto';
 import { StrategyPerformanceDto } from './dto/strategy-performance.dto';
 import { PublicStrategySummaryDto } from './dto/public-strategy-summary.dto';
 import { EquityCurvePointDto } from './dto/equity-curve.dto';
+import { SeedResultDto } from './dto/seed-result.dto';
 import { Strategy } from '../../database/models/strategy.model';
 import { Trade } from '../../database/models/trade.model';
 @Controller('strategies')
@@ -30,13 +32,6 @@ export class StrategyController {
   @Get()
   async findAll(): Promise<Strategy[]> {
     return this.strategyService.findAll();
-  }
-
-  @Get('account/:accountId')
-  async findByAccountId(
-    @Param('accountId') accountId: string,
-  ): Promise<Strategy[]> {
-    return this.strategyService.findByAccountId(accountId);
   }
 
   @Get(':id')
@@ -96,5 +91,33 @@ export class StrategyController {
     @Param('id') id: string,
   ): Promise<PublicStrategySummaryDto> {
     return this.strategyService.getPublicSummary(id);
+  }
+
+  // ==================== Dev / Seed Endpoints ====================
+
+  /**
+   * Seed deterministic demo data for local testing.
+   *
+   * Wipes any prior strategies whose name matches a seed entry (and their
+   * snapshots, trades, and real-time mirror rows), then creates fresh
+   * strategies with realistic performance snapshots and a mix of closed,
+   * open, and cancelled trades. The sync triggers auto-populate the
+   * `real_time_*` tables.
+   *
+   * **Disabled in production** — returns 403 when `NODE_ENV === 'production'`.
+   *
+   * Optional body: `{ "dayOne": "YYYY-MM-DD" }` to override the day-1 anchor
+   * (defaults to `2024-04-20` to match the client's reference).
+   */
+  @Post('dev/seed')
+  async seedDevData(
+    @Body() body?: { dayOne?: string },
+  ): Promise<SeedResultDto[]> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException(
+        'Seed endpoint is disabled in production environments.',
+      );
+    }
+    return this.strategyService.seedDevData(body?.dayOne);
   }
 }

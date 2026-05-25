@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
 import { StrategyController } from './strategy.controller';
 import { StrategyService } from './strategy.service';
 import { CreateStrategyDto, UpdateStrategyDto } from './dto';
@@ -10,17 +11,13 @@ describe('StrategyController', () => {
   const mockStrategy = {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'EUR/USD Scalper',
-    description: 'A scalping strategy',
-    account_id: '550e8400-e29b-41d4-a716-446655440001',
     status: 'active',
-    initial_capital: 10000,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
   const mockPerformance = {
     strategyId: '550e8400-e29b-41d4-a716-446655440000',
-    totalReturn: 15.5,
     totalPnL: 1550,
     unrealizedPnL: 250,
     realizedPnL: 1300,
@@ -36,7 +33,6 @@ describe('StrategyController', () => {
   const mockPublicSummary = {
     strategyId: '550e8400-e29b-41d4-a716-446655440000',
     name: 'EUR/USD Scalper',
-    totalReturn: 15.5,
     winRate: 0.65,
     totalTrades: 100,
     maxDrawdown: -8.5,
@@ -61,7 +57,6 @@ describe('StrategyController', () => {
   const mockEquityCurve = [
     {
       timestamp: new Date(),
-      equity: 10500,
       totalPnL: 500,
       drawdown: -2.5,
     },
@@ -76,7 +71,6 @@ describe('StrategyController', () => {
           useValue: {
             create: jest.fn(),
             findAll: jest.fn(),
-            findByAccountId: jest.fn(),
             findById: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
@@ -84,6 +78,7 @@ describe('StrategyController', () => {
             getPublicSummary: jest.fn(),
             getTrades: jest.fn(),
             getEquityCurve: jest.fn(),
+            seedDevData: jest.fn(),
           },
         },
       ],
@@ -99,14 +94,9 @@ describe('StrategyController', () => {
 
   describe('create', () => {
     it('should create a new strategy', async () => {
-      const dto: CreateStrategyDto = {
-        name: 'EUR/USD Scalper',
-        description: 'A scalping strategy',
-        account_id: '550e8400-e29b-41d4-a716-446655440001',
-        initial_capital: 10000,
-      };
+      const dto: CreateStrategyDto = { name: 'EUR/USD Scalper' };
 
-      jest.spyOn(service, 'create').mockResolvedValue(mockStrategy);
+      jest.spyOn(service, 'create').mockResolvedValue(mockStrategy as any);
 
       const result = await controller.create(dto);
 
@@ -115,13 +105,7 @@ describe('StrategyController', () => {
     });
 
     it('should propagate errors from service', async () => {
-      const dto: CreateStrategyDto = {
-        name: 'EUR/USD Scalper',
-        description: 'A scalping strategy',
-        account_id: '550e8400-e29b-41d4-a716-446655440001',
-        initial_capital: 10000,
-      };
-
+      const dto: CreateStrategyDto = { name: 'EUR/USD Scalper' };
       const error = new Error('Creation failed');
       jest.spyOn(service, 'create').mockRejectedValue(error);
 
@@ -131,7 +115,7 @@ describe('StrategyController', () => {
 
   describe('findAll', () => {
     it('should return all strategies', async () => {
-      jest.spyOn(service, 'findAll').mockResolvedValue([mockStrategy]);
+      jest.spyOn(service, 'findAll').mockResolvedValue([mockStrategy] as any);
 
       const result = await controller.findAll();
 
@@ -147,32 +131,10 @@ describe('StrategyController', () => {
     });
   });
 
-  describe('findByAccountId', () => {
-    it('should return strategies for an account', async () => {
-      const accountId = '550e8400-e29b-41d4-a716-446655440001';
-      jest.spyOn(service, 'findByAccountId').mockResolvedValue([mockStrategy]);
-
-      const result = await controller.findByAccountId(accountId);
-
-      expect(service.findByAccountId).toHaveBeenCalledWith(accountId);
-      expect(result).toEqual([mockStrategy]);
-    });
-
-    it('should propagate errors from service', async () => {
-      const accountId = '550e8400-e29b-41d4-a716-446655440001';
-      const error = new Error('Fetch failed');
-      jest.spyOn(service, 'findByAccountId').mockRejectedValue(error);
-
-      await expect(controller.findByAccountId(accountId)).rejects.toThrow(
-        'Fetch failed',
-      );
-    });
-  });
-
   describe('findById', () => {
     it('should return a strategy by ID', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
-      jest.spyOn(service, 'findById').mockResolvedValue(mockStrategy);
+      jest.spyOn(service, 'findById').mockResolvedValue(mockStrategy as any);
 
       const result = await controller.findById(id);
 
@@ -199,7 +161,7 @@ describe('StrategyController', () => {
         status: 'inactive',
       };
 
-      jest.spyOn(service, 'update').mockResolvedValue(mockStrategy);
+      jest.spyOn(service, 'update').mockResolvedValue(mockStrategy as any);
 
       const result = await controller.update(id, dto);
 
@@ -262,7 +224,7 @@ describe('StrategyController', () => {
     it('should return trades with default pagination', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
       jest.spyOn(service, 'getTrades').mockResolvedValue({
-        trades: [mockTrade],
+        trades: [mockTrade] as any,
         total: 1,
       });
 
@@ -276,7 +238,7 @@ describe('StrategyController', () => {
     it('should return trades with custom pagination', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
       jest.spyOn(service, 'getTrades').mockResolvedValue({
-        trades: [mockTrade],
+        trades: [mockTrade] as any,
         total: 1,
       });
 
@@ -340,9 +302,9 @@ describe('StrategyController', () => {
 
       expect(service.getPublicSummary).toHaveBeenCalledWith(id);
       expect(result).toEqual(mockPublicSummary);
-      // Verify no capital info is exposed
       expect(result).not.toHaveProperty('initial_capital');
       expect(result).not.toHaveProperty('totalPnL');
+      expect(result).not.toHaveProperty('totalReturn');
     });
 
     it('should propagate errors from service', async () => {
@@ -353,6 +315,57 @@ describe('StrategyController', () => {
       await expect(controller.getPublicSummary(id)).rejects.toThrow(
         'Public summary fetch failed',
       );
+    });
+  });
+
+  describe('seedDevData', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalNodeEnv;
+    });
+
+    it('should delegate to service.seedDevData and return its result', async () => {
+      process.env.NODE_ENV = 'development';
+      const seedResult = [
+        {
+          name: 'Seed: Momentum EUR/USD',
+          strategyId: 'abc-123',
+          snapshotsInserted: 10,
+          tradesInserted: 13,
+          closedTrades: 11,
+          openTrades: 1,
+          cancelledTrades: 1,
+          dayOne: '2024-04-20T00:00:00.000Z',
+          performanceUrl: '/strategies/abc-123/performance',
+          publicSummaryUrl: '/strategies/public/abc-123/summary',
+        },
+      ];
+      jest.spyOn(service, 'seedDevData').mockResolvedValue(seedResult);
+
+      const result = await controller.seedDevData({ dayOne: '2024-04-20' });
+
+      expect(service.seedDevData).toHaveBeenCalledWith('2024-04-20');
+      expect(result).toEqual(seedResult);
+    });
+
+    it('should pass undefined dayOne when body is empty', async () => {
+      process.env.NODE_ENV = 'development';
+      jest.spyOn(service, 'seedDevData').mockResolvedValue([]);
+
+      await controller.seedDevData();
+
+      expect(service.seedDevData).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should throw ForbiddenException when NODE_ENV is production', async () => {
+      process.env.NODE_ENV = 'production';
+      const seedSpy = jest.spyOn(service, 'seedDevData');
+
+      await expect(controller.seedDevData()).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(seedSpy).not.toHaveBeenCalled();
     });
   });
 });

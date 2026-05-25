@@ -3,7 +3,7 @@
     "name": "MetaAPI Trading Platform + Strategy Management",
     "description": "REST API for MetaAPI account provisioning, trading operations, and strategy management",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "2.0.0"
+    "version": "2.2.0"
   },
   "item": [
     {
@@ -1013,7 +1013,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"EUR/USD Scalper\",\n  \"description\": \"A scalping strategy for EUR/USD pair\",\n  \"account_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"initial_capital\": 10000\n}"
+                  "raw": "{\n  \"name\": \"EUR/USD Scalper\"\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/strategies",
@@ -1024,7 +1024,7 @@
                     "strategies"
                   ]
                 },
-                "description": "Create a new trading strategy"
+                "description": "Create a new trading strategy. Body requires only `name`."
               },
               "response": []
             },
@@ -1043,26 +1043,6 @@
                   ]
                 },
                 "description": "Retrieve all strategies"
-              },
-              "response": []
-            },
-            {
-              "name": "Get Strategies by Account",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/strategies/account/550e8400-e29b-41d4-a716-446655440000",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "strategies",
-                    "account",
-                    "550e8400-e29b-41d4-a716-446655440000"
-                  ]
-                },
-                "description": "Get all strategies for a specific account"
               },
               "response": []
             },
@@ -1097,7 +1077,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"EUR/USD Scalper v2\",\n  \"description\": \"Updated scalping strategy\",\n  \"status\": \"active\"\n}"
+                  "raw": "{\n  \"name\": \"EUR/USD Scalper v2\",\n  \"status\": \"active\"\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/strategies/550e8400-e29b-41d4-a716-446655440001",
@@ -1153,7 +1133,7 @@
                     "performance"
                   ]
                 },
-                "description": "Get live performance metrics for a strategy including returns, win rate, drawdown, and PnL"
+                "description": "Get live performance metrics for a strategy.\n\nAll counts and drawdown values are anchored to **day 1** = the timestamp of the earliest `strategy_performance` snapshot for this strategy (dynamic per strategy, NOT a hard-coded date).\n\nField semantics:\n- `totalTrades`: trades with `entry_time >= day1` (any status).\n- `winningTrades` / `losingTrades`: closed trades with `pnl > 0` / `pnl < 0`, since day 1.\n- `winRate`: `winningTrades / total_closed_trades`. Open and cancelled trades are excluded from both numerator and denominator.\n- `maxDrawdown`: largest peak-to-trough drop on `strategy_performance.total_pnl` since day 1, in **absolute USD** (non-negative). Monotonic — never decreases.\n- `currentDrawdown`: `peak_so_far − latest_total_pnl` in absolute USD (non-negative). 0 when latest snapshot is the all-time peak.\n- `totalPnL` / `unrealizedPnL` / `realizedPnL`: live values from `real_time_strategies`.\n\n`totalReturn` is intentionally absent — it requires an account-level baseline which is out of scope for the strategy endpoint."
               },
               "response": []
             },
@@ -1224,6 +1204,40 @@
           ]
         },
         {
+          "name": "Dev / Seed",
+          "item": [
+            {
+              "name": "Seed Demo Data",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"dayOne\": \"2024-04-20\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/strategies/dev/seed",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "strategies",
+                    "dev",
+                    "seed"
+                  ]
+                },
+                "description": "Seed deterministic demo data for local testing.\n\nWipes any existing strategies whose name matches a seed entry (and their `strategy_performance`, `trades`, `real_time_strategies`, `real_time_trades` rows), then creates two fresh strategies with realistic snapshot series and a mix of closed/open/cancelled trades. The sync triggers auto-populate the real-time mirror tables.\n\n**Disabled in production** — returns 403 when `NODE_ENV === 'production'`.\n\nBody (optional):\n- `dayOne` (YYYY-MM-DD) — overrides the day-1 anchor. Defaults to `2024-04-20`.\n\nResponse: an array of per-strategy results, each containing `strategyId`, counts, and the URLs (`performanceUrl`, `publicSummaryUrl`) you can hit next.\n\nExpected metrics after seeding:\n- Seed: Momentum EUR/USD → totalTrades 13, winRate 0.7273, maxDrawdown 100, currentDrawdown 100, totalPnL 220.\n- Seed: Mean Reversion DAX → totalTrades 12, winRate 0.5, maxDrawdown 25, currentDrawdown 0, totalPnL 130."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
           "name": "Public Strategy Endpoints",
           "item": [
             {
@@ -1243,7 +1257,7 @@
                     "summary"
                   ]
                 },
-                "description": "Get public strategy summary - exposes only performance metrics, hides capital information. Perfect for displaying on public website."
+                "description": "Get public strategy summary — exposes only non-sensitive performance metrics (no PnL values). Perfect for displaying on a public website.\n\nAll values are anchored to **day 1** = the earliest `strategy_performance` snapshot for this strategy (dynamic, NOT hard-coded).\n\nField semantics:\n- `totalTrades`: trades with `entry_time >= day1` (any status).\n- `winRate`: `winning_closed / total_closed`. Open and cancelled trades are excluded.\n- `maxDrawdown`: largest peak-to-trough drop on `strategy_performance.total_pnl` since day 1, in **absolute USD** (non-negative).\n\n`totalReturn` is intentionally absent — requires an account-level baseline which is out of scope."
               },
               "response": []
             }

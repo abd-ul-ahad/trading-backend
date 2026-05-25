@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Strategy Management API provides comprehensive endpoints for managing trading strategies, tracking performance, and exposing public-facing strategy summaries without sensitive capital information.
+The Strategy Management API provides endpoints for managing trading strategies, tracking performance, and exposing public-facing strategy summaries.
+
+> **Breaking change (v2.1.0)**: The `description`, `account_id`, and `initial_capital` fields were removed from the `strategies` table and all related DTOs. The `GET /strategies/account/:accountId` endpoint was removed. The `totalReturn` field (StrategyPerformance / PublicStrategySummary) and the `equity` field (EquityCurvePoint) were also removed because they depended on the now-absent `initial_capital`.
 
 ## Architecture
 
@@ -12,7 +14,7 @@ The Strategy Management API provides comprehensive endpoints for managing tradin
 2. **Dependency Injection**: All dependencies are injected via NestJS DI container
 3. **Error Handling**: Consistent error handling with proper HTTP status codes
 4. **Validation**: Input validation using class-validator decorators
-5. **Testing**: Comprehensive unit tests for both services and controllers
+5. **Testing**: Unit tests for both services and controllers
 
 ### Project Structure
 
@@ -34,11 +36,11 @@ src/modules/strategy/
 └── STRATEGY_API.md (this file)
 
 src/database/models/
-├── strategy.model.ts
-└── (other models)
+└── strategy.model.ts
 
-src/database/migrations/
-└── 001-create-strategies-table.ts
+database/migrations/
+├── 20240115110000-create-strategies-table.ts
+└── 20260524210000-drop-strategies-extra-columns.ts
 ```
 
 ## API Endpoints
@@ -51,20 +53,14 @@ POST /strategies
 Content-Type: application/json
 
 {
-  "name": "EUR/USD Scalper",
-  "description": "A scalping strategy for EUR/USD pair",
-  "account_id": "550e8400-e29b-41d4-a716-446655440000",
-  "initial_capital": 10000
+  "name": "EUR/USD Scalper"
 }
 
 Response: 201 Created
 {
   "id": "550e8400-e29b-41d4-a716-446655440001",
   "name": "EUR/USD Scalper",
-  "description": "A scalping strategy for EUR/USD pair",
-  "account_id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "active",
-  "initial_capital": 10000,
   "createdAt": "2024-05-19T10:30:00.000Z",
   "updatedAt": "2024-05-19T10:30:00.000Z"
 }
@@ -79,26 +75,9 @@ Response: 200 OK
   {
     "id": "550e8400-e29b-41d4-a716-446655440001",
     "name": "EUR/USD Scalper",
-    "description": "A scalping strategy for EUR/USD pair",
-    "account_id": "550e8400-e29b-41d4-a716-446655440000",
     "status": "active",
-    "initial_capital": 10000,
     "createdAt": "2024-05-19T10:30:00.000Z",
     "updatedAt": "2024-05-19T10:30:00.000Z"
-  }
-]
-```
-
-#### Get Strategies by Account
-```
-GET /strategies/account/:accountId
-
-Response: 200 OK
-[
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440001",
-    "name": "EUR/USD Scalper",
-    ...
   }
 ]
 ```
@@ -111,7 +90,9 @@ Response: 200 OK
 {
   "id": "550e8400-e29b-41d4-a716-446655440001",
   "name": "EUR/USD Scalper",
-  ...
+  "status": "active",
+  "createdAt": "2024-05-19T10:30:00.000Z",
+  "updatedAt": "2024-05-19T10:30:00.000Z"
 }
 ```
 
@@ -150,19 +131,20 @@ GET /strategies/:id/performance
 Response: 200 OK
 {
   "strategyId": "550e8400-e29b-41d4-a716-446655440001",
-  "totalReturn": 15.5,              // % return
-  "totalPnL": 1550.00,              // $ profit/loss
-  "unrealizedPnL": 250.00,          // Open positions
-  "realizedPnL": 1300.00,           // Closed positions
-  "winRate": 0.65,                  // 65% winning trades
+  "totalPnL": 1550.00,
+  "unrealizedPnL": 250.00,
+  "realizedPnL": 1300.00,
+  "winRate": 0.65,
   "totalTrades": 100,
   "winningTrades": 65,
   "losingTrades": 35,
-  "maxDrawdown": -8.5,              // % drawdown
-  "currentDrawdown": -2.1,          // Current % drawdown
+  "maxDrawdown": 120.50,
+  "currentDrawdown": 35.00,
   "lastUpdated": "2024-05-19T10:30:00.000Z"
 }
 ```
+
+All counts and drawdown values are scoped to "day 1" — see [Performance Calculation](#performance-calculation) below. `maxDrawdown` and `currentDrawdown` are reported in absolute USD as non-negative numbers.
 
 #### Get Strategy Trades
 ```
@@ -206,7 +188,6 @@ Response: 200 OK
 [
   {
     "timestamp": "2024-05-19T10:30:00.000Z",
-    "equity": 10500,                 // initial_capital + total_pnL
     "totalPnL": 500,
     "drawdown": -2.5
   }
@@ -215,7 +196,7 @@ Response: 200 OK
 
 ### Public Strategy Endpoints
 
-#### Get Public Summary (No Capital Info)
+#### Get Public Summary
 ```
 GET /strategies/public/:id/summary
 
@@ -223,31 +204,59 @@ Response: 200 OK
 {
   "strategyId": "550e8400-e29b-41d4-a716-446655440001",
   "name": "EUR/USD Scalper",
-  "totalReturn": 15.5,              // % return ONLY
   "winRate": 0.65,
   "totalTrades": 100,
-  "maxDrawdown": -8.5,
+  "maxDrawdown": 120.50,
   "lastUpdated": "2024-05-19T10:30:00.000Z"
 }
 ```
 
-**Note**: This endpoint excludes:
-- `initial_capital`
-- `totalPnL` (absolute value)
-- `unrealizedPnL`
-- `realizedPnL`
-- `account_id`
+This endpoint deliberately excludes any PnL values (`totalPnL`, `unrealizedPnL`, `realizedPnL`). All values are scoped to "day 1" — see [Performance Calculation](#performance-calculation). `maxDrawdown` is in absolute USD.
+
+### Dev / Seed
+
+#### Seed demo data
+```
+POST /strategies/dev/seed
+Content-Type: application/json
+
+{ "dayOne": "2024-04-20" }    // optional; defaults to "2024-04-20"
+
+Response: 201 Created
+[
+  {
+    "name": "Seed: Momentum EUR/USD",
+    "strategyId": "abc-123-...",
+    "snapshotsInserted": 10,
+    "tradesInserted": 13,
+    "closedTrades": 11,
+    "openTrades": 1,
+    "cancelledTrades": 1,
+    "dayOne": "2024-04-20T00:00:00.000Z",
+    "performanceUrl": "/strategies/abc-123-.../performance",
+    "publicSummaryUrl": "/strategies/public/abc-123-.../summary"
+  },
+  {
+    "name": "Seed: Mean Reversion DAX",
+    ...
+  }
+]
+```
+
+Wipes any existing strategies whose name matches a seed entry (and their `strategy_performance`, `trades`, `real_time_strategies`, `real_time_trades` rows), then creates two fresh strategies with realistic snapshot series and a mix of closed/open/cancelled trades. The sync triggers auto-populate the `real_time_*` tables — the response only counts what was directly written.
+
+**Disabled in production.** Returns `403 Forbidden` when `NODE_ENV === 'production'`.
+
+Designed to be re-run safely — each call resets the seed strategies to their starting state with fresh UUIDs.
+
+Expected metrics after seeding (`GET /strategies/:id/performance` for each):
+
+| Strategy | `totalTrades` | `winningTrades` / `losingTrades` | `winRate` | `maxDrawdown` (USD) | `currentDrawdown` (USD) | `totalPnL` |
+|---|---|---|---|---|---|---|
+| Seed: Momentum EUR/USD | 13 | 8 / 3 | 0.7273 | 100 | 100 | 220 |
+| Seed: Mean Reversion DAX | 12 | 5 / 5 | 0.5 | 25 | 0 | 130 |
 
 ## Error Responses
-
-### 400 Bad Request
-```json
-{
-  "statusCode": 400,
-  "message": "Initial capital must be greater than 0",
-  "error": "Bad Request"
-}
-```
 
 ### 404 Not Found
 ```json
@@ -272,12 +281,9 @@ Response: 200 OK
 ### Strategy Model
 ```typescript
 {
-  id: UUID;                    // Primary key
-  name: string;                // Strategy name
-  description?: string;        // Optional description
-  account_id: UUID;            // Associated account
+  id: UUID;
+  name: string;
   status: 'active' | 'inactive';
-  initial_capital: decimal;    // Starting capital for return calculations
   createdAt: Date;
   updatedAt: Date;
 }
@@ -285,11 +291,24 @@ Response: 200 OK
 
 ### Performance Calculation
 
-**Total Return %** = (Total PnL / Initial Capital) × 100
+All performance metrics are anchored to **day 1**, defined as the timestamp of the earliest `strategy_performance` snapshot for the strategy. Day 1 is dynamic per strategy — it is NOT a hard-coded calendar date.
 
-**Win Rate** = Winning Trades / Total Trades
+**Total Trades** = count of trades whose `entry_time >= day1` (any status: open, closed, or cancelled).
 
-**Drawdown** = (Peak Equity - Current Equity) / Peak Equity × 100
+**Win Rate** = `winning_closed / total_closed`
+
+- Numerator: closed trades with `pnl > 0`.
+- Denominator: closed trades only. Open and cancelled trades are excluded from both numerator and denominator.
+- Example: 55 winning closed trades out of 100 closed trades since day 1 → win rate `0.55`.
+
+**Max Drawdown** = largest peak-to-trough drop in the `strategy_performance.total_pnl` series since day 1, in **absolute USD**.
+
+- The series is walked in timestamp order. At each snapshot, the running peak is updated, then `drawdown = peak − current` is computed. `maxDrawdown` is the maximum such drawdown observed (peak must precede the trough in time).
+- Reported as a non-negative number. `0` means the cumulative PnL has only ever gone up.
+
+**Current Drawdown** = drop from the all-time peak to the most recent snapshot, in absolute USD (non-negative). Equals `0` when the latest snapshot is also the peak.
+
+> `totalReturn` (% return) is intentionally not exposed by the strategy endpoints — it requires an account-level "money in account" baseline which is out of scope for this module.
 
 ## Testing
 
@@ -303,103 +322,17 @@ npm run test
 npm run test -- strategy
 ```
 
-### Run Tests with Coverage
-```bash
-npm run test:cov
-```
-
-### Test Coverage
-- **Strategy Service**: 100% coverage
-  - CRUD operations
-  - Performance calculations
-  - Error handling
-  - Edge cases
-
-- **Strategy Controller**: 100% coverage
-  - All endpoints
-  - Error propagation
-  - Parameter validation
-
 ## Usage Examples
 
-### Example 1: Create and Monitor a Strategy
-
 ```bash
-# 1. Create a strategy
+# Create a strategy
 curl -X POST http://localhost:3000/strategies \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "EUR/USD Scalper",
-    "description": "Scalping strategy",
-    "account_id": "550e8400-e29b-41d4-a716-446655440000",
-    "initial_capital": 10000
-  }'
+  -d '{"name": "EUR/USD Scalper"}'
 
-# Response: Strategy ID = 550e8400-e29b-41d4-a716-446655440001
+# Get live performance
+curl http://localhost:3000/strategies/<id>/performance
 
-# 2. Get live performance
-curl http://localhost:3000/strategies/550e8400-e29b-41d4-a716-446655440001/performance
-
-# 3. Get public summary for website
-curl http://localhost:3000/strategies/public/550e8400-e29b-41d4-a716-446655440001/summary
+# Get public summary
+curl http://localhost:3000/strategies/public/<id>/summary
 ```
-
-### Example 2: Display Strategy on Public Page
-
-```javascript
-// Frontend code
-async function displayStrategyOnPublicPage(strategyId) {
-  const response = await fetch(
-    `/strategies/public/${strategyId}/summary`
-  );
-  const summary = await response.json();
-
-  // Display only performance metrics
-  document.getElementById('strategy-name').textContent = summary.name;
-  document.getElementById('total-return').textContent = `${summary.totalReturn}%`;
-  document.getElementById('win-rate').textContent = `${(summary.winRate * 100).toFixed(2)}%`;
-  document.getElementById('max-drawdown').textContent = `${summary.maxDrawdown}%`;
-  document.getElementById('total-trades').textContent = summary.totalTrades;
-}
-```
-
-### Example 3: Get Equity Curve for Chart
-
-```bash
-# Get 60 days of equity curve data
-curl "http://localhost:3000/strategies/550e8400-e29b-41d4-a716-446655440001/equity-curve?days=60"
-
-# Response: Array of equity points for charting
-[
-  {
-    "timestamp": "2024-03-20T10:30:00.000Z",
-    "equity": 10100,
-    "totalPnL": 100,
-    "drawdown": -1.5
-  },
-  ...
-]
-```
-
-## Performance Considerations
-
-1. **Caching**: Consider caching performance data for frequently accessed strategies
-2. **Pagination**: Always use pagination for trades endpoint (limit/offset)
-3. **Indexes**: Database indexes on `account_id`, `status`, and `created_at` for fast queries
-4. **Real-Time Data**: Performance data is calculated from real-time strategy table (synced via triggers)
-
-## Security
-
-1. **Public Endpoints**: `/strategies/public/*` endpoints expose only performance metrics
-2. **Capital Protection**: Initial capital and absolute PnL values are never exposed in public endpoints
-3. **Account Isolation**: Strategies are always filtered by account_id
-4. **Input Validation**: All inputs validated with class-validator
-
-## Future Enhancements
-
-1. **WebSocket Support**: Real-time performance updates
-2. **Performance Caching**: Redis caching for frequently accessed data
-3. **Advanced Filtering**: Filter strategies by performance metrics
-4. **Batch Operations**: Create/update multiple strategies
-5. **Performance Alerts**: Notify when drawdown exceeds threshold
-6. **Strategy Comparison**: Compare multiple strategies side-by-side

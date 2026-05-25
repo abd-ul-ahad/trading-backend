@@ -2,124 +2,162 @@ import { Injectable } from '@nestjs/common';
 import { SequelizeModuleOptions } from '@nestjs/sequelize';
 
 /**
- * Database configuration service for PostgreSQL
+ * Single source of truth for database configuration.
  *
- * Supports three environments:
- * - Development: PostgreSQL with console logging
- * - Test: PostgreSQL with separate test database
- * - Production: PostgreSQL with connection pooling
+ * Consumers:
+ *   - NestJS `DatabaseModule` -> `loadDatabaseConfig()` (or the legacy
+ *     `DatabaseConfigService` class).
+ *   - Sequelize CLI -> `src/config/database.js` re-exports `getCliConfig()`.
+ *
+ * The CLI requires a `{ development, test, production }` shape. Nest only
+ * needs the per-env shape. Both are derived from the same pure builders so
+ * they cannot drift.
+ */
+
+export type DbEnv = 'development' | 'test' | 'production';
+
+export type DatabaseConfig = SequelizeModuleOptions & {
+  // sequelize-cli reads these top-level keys; NestJS ignores extras.
+  username?: string;
+};
+
+/**
+ * Resolve the current environment, defaulting to development.
+ */
+export function resolveDbEnv(env?: string): DbEnv {
+  switch (env) {
+    case 'production':
+    case 'test':
+    case 'development':
+      return env;
+    default:
+      return 'development';
+  }
+}
+
+/**
+ * Build the database config for a given environment, reading from process.env.
+ *
+ * - development: PostgreSQL with console logging.
+ * - test:        PostgreSQL against DB_DATABASE_TEST, logging disabled.
+ * - production:  PostgreSQL with required-env validation and a connection pool.
+ */
+export function loadDatabaseConfig(env?: DbEnv): DatabaseConfig {
+  const resolved = resolveDbEnv(env ?? process.env.NODE_ENV);
+
+  switch (resolved) {
+    case 'production':
+      return buildProductionConfig();
+    case 'test':
+      return buildTestConfig();
+    case 'development':
+    default:
+      return buildDevelopmentConfig();
+  }
+}
+
+/**
+ * Sequelize CLI shape: one object per environment.
+ */
+export function getCliConfig(): Record<DbEnv, DatabaseConfig> {
+  return {
+    development: buildDevelopmentConfig(),
+    test: buildTestConfig(),
+    production: buildProductionConfig(),
+  };
+}
+
+function buildDevelopmentConfig(): DatabaseConfig {
+  return {
+    dialect: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    username: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_DATABASE || 'nestjs_db',
+    logging: console.log,
+    autoLoadModels: true,
+    synchronize: false,
+  };
+}
+
+function buildTestConfig(): DatabaseConfig {
+  return {
+    dialect: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    username: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_DATABASE_TEST || 'nestjs_db_test',
+    logging: false,
+    autoLoadModels: true,
+    synchronize: false,
+  };
+}
+
+function buildProductionConfig(): DatabaseConfig {
+  validateProductionEnvVars();
+
+  const poolMax = parseInt(process.env.DB_POOL_MAX || '5', 10);
+  const poolMin = parseInt(process.env.DB_POOL_MIN || '0', 10);
+
+  return {
+    dialect: 'postgres',
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    username: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    logging: false,
+    autoLoadModels: true,
+    synchronize: false,
+    pool: {
+      max: poolMax,
+      min: poolMin,
+      acquire: 30000,
+      idle: 10000,
+      evict: 10000,
+    },
+  };
+}
+
+function validateProductionEnvVars(): void {
+  const requiredVars = ['DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE'];
+  const missing = requiredVars.filter((name) => !process.env[name]);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}`,
+    );
+  }
+
+  if (process.env.DB_PORT) {
+    const port = parseInt(process.env.DB_PORT, 10);
+    if (isNaN(port) || port <= 0 || port > 65535) {
+      throw new Error(`Invalid DB_PORT: ${process.env.DB_PORT}`);
+    }
+  }
+}
+
+/**
+ * Legacy NestJS-friendly wrapper. Prefer `loadDatabaseConfig()` in new code.
+ * Kept so existing consumers (DatabaseModule, tests) keep working unchanged.
  */
 @Injectable()
 export class DatabaseConfigService {
-  /**
-   * Get database configuration based on NODE_ENV
-   */
   getConfig(): SequelizeModuleOptions {
-    const env = process.env.NODE_ENV || 'development';
-
-    switch (env) {
-      case 'production':
-        return this.getProductionConfig();
-      case 'test':
-        return this.getTestConfig();
-      case 'development':
-      default:
-        return this.getDevelopmentConfig();
-    }
+    return loadDatabaseConfig();
   }
 
-  /**
-   * Development configuration using PostgreSQL
-   */
   getDevelopmentConfig(): SequelizeModuleOptions {
-    return {
-      dialect: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_DATABASE || 'nestjs_db',
-      logging: console.log,
-      autoLoadModels: true,
-      synchronize: false,
-    };
+    return loadDatabaseConfig('development');
   }
 
-  /**
-   * Test configuration using PostgreSQL with separate test database
-   */
   getTestConfig(): SequelizeModuleOptions {
-    return {
-      dialect: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_DATABASE_TEST || 'nestjs_db_test',
-      logging: false,
-      autoLoadModels: true,
-      synchronize: false,
-    };
+    return loadDatabaseConfig('test');
   }
 
-  /**
-   * Production configuration with connection pooling
-   */
   getProductionConfig(): SequelizeModuleOptions {
-    this.validateProductionEnvVars();
-
-    const host = process.env.DB_HOST;
-    const port = parseInt(process.env.DB_PORT || '5432', 10);
-    const username = process.env.DB_USERNAME;
-    const password = process.env.DB_PASSWORD;
-    const database = process.env.DB_DATABASE;
-
-    const poolMax = parseInt(process.env.DB_POOL_MAX || '5', 10);
-    const poolMin = parseInt(process.env.DB_POOL_MIN || '0', 10);
-
-    return {
-      dialect: 'postgres',
-      host,
-      port,
-      username,
-      password,
-      database,
-      logging: false,
-      autoLoadModels: true,
-      synchronize: false,
-      pool: {
-        max: poolMax,
-        min: poolMin,
-        acquire: 30000,
-        idle: 10000,
-        evict: 10000,
-      },
-    };
-  }
-
-  /**
-   * Validate required environment variables for production
-   */
-  private validateProductionEnvVars(): void {
-    const requiredVars = [
-      'DB_HOST',
-      'DB_USERNAME',
-      'DB_PASSWORD',
-      'DB_DATABASE',
-    ];
-    const missingVars = requiredVars.filter((varName) => !process.env[varName]);
-
-    if (missingVars.length > 0) {
-      throw new Error(
-        `Missing required environment variables: ${missingVars.join(', ')}`,
-      );
-    }
-
-    if (process.env.DB_PORT) {
-      const port = parseInt(process.env.DB_PORT, 10);
-      if (isNaN(port) || port <= 0 || port > 65535) {
-        throw new Error(`Invalid DB_PORT: ${process.env.DB_PORT}`);
-      }
-    }
+    return loadDatabaseConfig('production');
   }
 }

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { DatabaseConfigService } from '../config/database.config';
+import { loadDatabaseConfig } from '../config/database.config';
 import { Trade } from './models/trade.model';
 import { Strategy } from './models/strategy.model';
 import { AccountPerformance } from './models/account-performance.model';
@@ -10,30 +10,29 @@ import { RealTimeAccount } from './models/real-time-account.model';
 import { RealTimeStrategy } from './models/real-time-strategy.model';
 
 /**
- * Database module that configures Sequelize ORM for PostgreSQL
+ * Database module that configures Sequelize ORM for PostgreSQL.
+ *
+ * Config is sourced from `src/config/database.config.ts` — the same module
+ * that powers sequelize-cli (via the .js shim). No duplication.
  *
  * Features:
- * - Connection pooling (configurable via DB_POOL_MIN / DB_POOL_MAX)
- * - Environment-based query logging
- * - 30-second query timeout
- * - Model registration (User, Post)
- * - Production-safe (synchronize disabled)
+ *  - Connection pooling (DB_POOL_MIN / DB_POOL_MAX) in production.
+ *  - Environment-based query logging.
+ *  - 30-second statement timeout.
+ *  - All app models registered for DI.
+ *  - Production-safe (synchronize disabled — migrations own the schema).
  */
 @Module({
   imports: [
     SequelizeModule.forRootAsync({
       useFactory: () => {
-        const configService = new DatabaseConfigService();
-        const config = configService.getConfig();
+        const config = loadDatabaseConfig();
 
-        // Add query timeout for PostgreSQL (30 seconds)
         config.dialectOptions = {
           ...config.dialectOptions,
           statement_timeout: 30000,
         };
 
-        // Register models with Sequelize
-        // This makes them available for dependency injection in services and controllers
         config.models = [
           Trade,
           Strategy,

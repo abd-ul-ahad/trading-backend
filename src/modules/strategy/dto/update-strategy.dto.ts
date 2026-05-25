@@ -4,9 +4,7 @@ export class UpdateStrategyDto {
   @IsOptional()
   @IsString()
   name?: string;
-  @IsOptional()
-  @IsString()
-  description?: string;
+
   @IsOptional()
   @IsEnum(['active', 'inactive'])
   status?: 'active' | 'inactive';

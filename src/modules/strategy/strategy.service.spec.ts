@@ -1,11 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/sequelize';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { StrategyService } from './strategy.service';
 import { Strategy } from '../../database/models/strategy.model';
 import { Trade } from '../../database/models/trade.model';
 import { StrategyPerformance } from '../../database/models/strategy-performance.model';
 import { RealTimeStrategy } from '../../database/models/real-time-strategy.model';
+import { RealTimeTrade } from '../../database/models/real-time-trade.model';
 import { CreateStrategyDto, UpdateStrategyDto } from './dto';
 
 describe('StrategyService', () => {
@@ -18,10 +19,7 @@ describe('StrategyService', () => {
   const mockStrategy = {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'EUR/USD Scalper',
-    description: 'A scalping strategy',
-    account_id: '550e8400-e29b-41d4-a716-446655440001',
     status: 'active',
-    initial_capital: 10000,
     createdAt: new Date(),
     updatedAt: new Date(),
     save: jest.fn(),
@@ -75,12 +73,20 @@ describe('StrategyService', () => {
           provide: getModelToken(StrategyPerformance),
           useValue: {
             findAll: jest.fn(),
+            findOne: jest.fn(),
           },
         },
         {
           provide: getModelToken(RealTimeStrategy),
           useValue: {
             findByPk: jest.fn(),
+            destroy: jest.fn(),
+          },
+        },
+        {
+          provide: getModelToken(RealTimeTrade),
+          useValue: {
+            destroy: jest.fn(),
           },
         },
       ],
@@ -99,12 +105,7 @@ describe('StrategyService', () => {
 
   describe('create', () => {
     it('should create a new strategy', async () => {
-      const dto: CreateStrategyDto = {
-        name: 'EUR/USD Scalper',
-        description: 'A scalping strategy',
-        account_id: '550e8400-e29b-41d4-a716-446655440001',
-        initial_capital: 10000,
-      };
+      const dto: CreateStrategyDto = { name: 'EUR/USD Scalper' };
 
       jest.spyOn(strategyModel, 'create').mockResolvedValue(mockStrategy);
 
@@ -112,32 +113,13 @@ describe('StrategyService', () => {
 
       expect(strategyModel.create).toHaveBeenCalledWith({
         name: dto.name,
-        description: dto.description,
-        account_id: dto.account_id,
-        initial_capital: dto.initial_capital,
         status: 'active',
       });
       expect(result).toEqual(mockStrategy);
     });
 
-    it('should throw BadRequestException if initial_capital is <= 0', async () => {
-      const dto: CreateStrategyDto = {
-        name: 'EUR/USD Scalper',
-        description: 'A scalping strategy',
-        account_id: '550e8400-e29b-41d4-a716-446655440001',
-        initial_capital: 0,
-      };
-
-      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-    });
-
     it('should handle creation errors', async () => {
-      const dto: CreateStrategyDto = {
-        name: 'EUR/USD Scalper',
-        description: 'A scalping strategy',
-        account_id: '550e8400-e29b-41d4-a716-446655440001',
-        initial_capital: 10000,
-      };
+      const dto: CreateStrategyDto = { name: 'EUR/USD Scalper' };
 
       jest
         .spyOn(strategyModel, 'create')
@@ -165,32 +147,6 @@ describe('StrategyService', () => {
         .mockRejectedValue(new Error('Database error'));
 
       await expect(service.findAll()).rejects.toThrow('Database error');
-    });
-  });
-
-  describe('findByAccountId', () => {
-    it('should return strategies for an account', async () => {
-      const accountId = '550e8400-e29b-41d4-a716-446655440001';
-      jest.spyOn(strategyModel, 'findAll').mockResolvedValue([mockStrategy]);
-
-      const result = await service.findByAccountId(accountId);
-
-      expect(strategyModel.findAll).toHaveBeenCalledWith({
-        where: { account_id: accountId },
-        order: [['createdAt', 'DESC']],
-      });
-      expect(result).toEqual([mockStrategy]);
-    });
-
-    it('should handle errors', async () => {
-      const accountId = '550e8400-e29b-41d4-a716-446655440001';
-      jest
-        .spyOn(strategyModel, 'findAll')
-        .mockRejectedValue(new Error('Database error'));
-
-      await expect(service.findByAccountId(accountId)).rejects.toThrow(
-        'Database error',
-      );
     });
   });
 
@@ -295,23 +251,36 @@ describe('StrategyService', () => {
   });
 
   describe('getPerformance', () => {
-    it('should return performance metrics', async () => {
+    it('should return performance metrics anchored to day 1', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
+      const day1 = new Date('2024-04-20T00:00:00.000Z');
 
       jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(mockStrategy);
       jest.spyOn(tradeModel, 'findAll').mockResolvedValue([mockTrade]);
       jest
         .spyOn(realTimeStrategyModel, 'findByPk')
         .mockResolvedValue(mockRealTimeStrategy);
+      jest
+        .spyOn(strategyPerformanceModel, 'findOne')
+        .mockResolvedValue({ timestamp: day1 });
+      jest.spyOn(strategyPerformanceModel, 'findAll').mockResolvedValue([
+        { timestamp: day1, total_pnl: 100 },
+        { timestamp: new Date('2024-04-21T00:00:00.000Z'), total_pnl: 150 },
+        { timestamp: new Date('2024-04-22T00:00:00.000Z'), total_pnl: 80 },
+        { timestamp: new Date('2024-04-23T00:00:00.000Z'), total_pnl: 130 },
+      ]);
 
       const result = await service.getPerformance(id);
 
       expect(result.strategyId).toBe(id);
-      expect(result.totalReturn).toBe(15.5);
+      expect(result.totalPnL).toBe(1550);
       expect(result.totalTrades).toBe(1);
       expect(result.winningTrades).toBe(1);
       expect(result.losingTrades).toBe(0);
       expect(result.winRate).toBe(1);
+      expect(result.maxDrawdown).toBe(70);
+      expect(result.currentDrawdown).toBe(20);
+      expect(result).not.toHaveProperty('totalReturn');
     });
 
     it('should throw NotFoundException if strategy not found', async () => {
@@ -324,25 +293,98 @@ describe('StrategyService', () => {
       );
     });
 
-    it('should handle missing real-time data', async () => {
+    it('should return zeroed metrics when no snapshots exist', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
 
       jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(mockStrategy);
-      jest.spyOn(tradeModel, 'findAll').mockResolvedValue([]);
       jest.spyOn(realTimeStrategyModel, 'findByPk').mockResolvedValue(null);
+      jest
+        .spyOn(strategyPerformanceModel, 'findOne')
+        .mockResolvedValue(null);
 
       const result = await service.getPerformance(id);
 
       expect(result.totalPnL).toBe(0);
       expect(result.totalTrades).toBe(0);
+      expect(result.winningTrades).toBe(0);
+      expect(result.losingTrades).toBe(0);
       expect(result.winRate).toBe(0);
+      expect(result.maxDrawdown).toBe(0);
+      expect(result.currentDrawdown).toBe(0);
+    });
+
+    it('should compute win rate using closed trades only (open + cancelled excluded)', async () => {
+      const id = '550e8400-e29b-41d4-a716-446655440000';
+      const day1 = new Date('2024-04-20T00:00:00.000Z');
+
+      const winningClosed = { ...mockTrade, status: 'closed', pnl: 25 };
+      const openTrade = {
+        ...mockTrade,
+        trade_id: 'open-1',
+        status: 'open',
+        pnl: null,
+      };
+      const cancelledTrade = {
+        ...mockTrade,
+        trade_id: 'cancelled-1',
+        status: 'cancelled',
+        pnl: null,
+      };
+
+      jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(mockStrategy);
+      jest
+        .spyOn(realTimeStrategyModel, 'findByPk')
+        .mockResolvedValue(mockRealTimeStrategy);
+      jest
+        .spyOn(strategyPerformanceModel, 'findOne')
+        .mockResolvedValue({ timestamp: day1 });
+      jest.spyOn(strategyPerformanceModel, 'findAll').mockResolvedValue([]);
+      jest
+        .spyOn(tradeModel, 'findAll')
+        .mockResolvedValue([winningClosed, openTrade, cancelledTrade]);
+
+      const result = await service.getPerformance(id);
+
+      expect(result.totalTrades).toBe(3);
+      expect(result.winningTrades).toBe(1);
+      expect(result.losingTrades).toBe(0);
+      expect(result.winRate).toBe(1);
+    });
+
+    it('should compute max drawdown as absolute USD peak-to-trough on total_pnl', async () => {
+      const id = '550e8400-e29b-41d4-a716-446655440000';
+      const day1 = new Date('2024-04-20T00:00:00.000Z');
+
+      jest.spyOn(strategyModel, 'findByPk').mockResolvedValue(mockStrategy);
+      jest.spyOn(tradeModel, 'findAll').mockResolvedValue([]);
+      jest
+        .spyOn(realTimeStrategyModel, 'findByPk')
+        .mockResolvedValue(mockRealTimeStrategy);
+      jest
+        .spyOn(strategyPerformanceModel, 'findOne')
+        .mockResolvedValue({ timestamp: day1 });
+      jest.spyOn(strategyPerformanceModel, 'findAll').mockResolvedValue([
+        { timestamp: new Date('2024-04-20T00:00:00.000Z'), total_pnl: 100 },
+        { timestamp: new Date('2024-04-21T00:00:00.000Z'), total_pnl: 150 },
+        { timestamp: new Date('2024-04-22T00:00:00.000Z'), total_pnl: 90 },
+        { timestamp: new Date('2024-04-23T00:00:00.000Z'), total_pnl: 130 },
+        { timestamp: new Date('2024-04-24T00:00:00.000Z'), total_pnl: 50 },
+      ]);
+
+      const result = await service.getPerformance(id);
+
+      // Peak 150 → trough 50 = 100 USD drawdown.
+      expect(result.maxDrawdown).toBe(100);
+      // Current peak is 150, latest is 50, so currentDrawdown = 100.
+      expect(result.currentDrawdown).toBe(100);
     });
   });
 
   describe('getPublicSummary', () => {
-    it('should return public summary without capital info', async () => {
+    it('should return public summary without capital info or totalReturn', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
       const freshMockStrategy = { ...mockStrategy };
+      const day1 = new Date('2024-04-20T00:00:00.000Z');
 
       jest
         .spyOn(strategyModel, 'findByPk')
@@ -351,18 +393,25 @@ describe('StrategyService', () => {
       jest
         .spyOn(realTimeStrategyModel, 'findByPk')
         .mockResolvedValue(mockRealTimeStrategy);
+      jest
+        .spyOn(strategyPerformanceModel, 'findOne')
+        .mockResolvedValue({ timestamp: day1 });
+      jest.spyOn(strategyPerformanceModel, 'findAll').mockResolvedValue([
+        { timestamp: day1, total_pnl: 200 },
+        { timestamp: new Date('2024-04-21T00:00:00.000Z'), total_pnl: 50 },
+      ]);
 
       const result = await service.getPublicSummary(id);
 
       expect(result.strategyId).toBe(id);
       expect(result.name).toBe('EUR/USD Scalper');
-      expect(result.totalReturn).toBe(15.5);
       expect(result.winRate).toBe(1);
       expect(result.totalTrades).toBe(1);
-      expect(result.maxDrawdown).toBe(-2.1);
-      // Ensure no capital info is exposed
+      // Peak 200 → trough 50 = 150 USD drawdown.
+      expect(result.maxDrawdown).toBe(150);
       expect(result).not.toHaveProperty('initial_capital');
       expect(result).not.toHaveProperty('totalPnL');
+      expect(result).not.toHaveProperty('totalReturn');
     });
 
     it('should throw NotFoundException if strategy not found', async () => {
@@ -427,7 +476,7 @@ describe('StrategyService', () => {
   });
 
   describe('getEquityCurve', () => {
-    it('should return equity curve data', async () => {
+    it('should return equity curve data (totalPnL + drawdown only, no absolute equity)', async () => {
       const id = '550e8400-e29b-41d4-a716-446655440000';
       const mockPerformance = {
         timestamp: new Date(),
@@ -443,9 +492,9 @@ describe('StrategyService', () => {
       const result = await service.getEquityCurve(id, 30);
 
       expect(result).toHaveLength(1);
-      expect(result[0].equity).toBe(10500); // initial_capital + total_pnl
       expect(result[0].totalPnL).toBe(500);
       expect(result[0].drawdown).toBe(-2.5);
+      expect(result[0]).not.toHaveProperty('equity');
     });
 
     it('should throw NotFoundException if strategy not found', async () => {

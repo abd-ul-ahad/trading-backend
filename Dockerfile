@@ -22,10 +22,17 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy built application and files required for sequelize-cli migrations
+# Copy built application
 COPY --from=builder /app/dist ./dist
+
+# Files required by sequelize-cli at runtime.
+# Migrations are TypeScript and loaded via ts-node (registered by .sequelizerc),
+# so the runtime image must ship the TS source + tsconfigs alongside the .js shim.
 COPY --from=builder /app/.sequelizerc ./
-COPY --from=builder /app/src/config/database.js ./src/config/database.js
+COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/tsconfig.cli.json ./
+COPY --from=builder /app/src/config ./src/config
+COPY --from=builder /app/database ./database
 
 # Non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
