@@ -225,7 +225,7 @@ Content-Type: application/json
 Response: 201 Created
 [
   {
-    "name": "Seed: Momentum EUR/USD",
+    "name": "Strategy 1",
     "strategyId": "abc-123-...",
     "snapshotsInserted": 10,
     "tradesInserted": 13,
@@ -237,24 +237,33 @@ Response: 201 Created
     "publicSummaryUrl": "/strategies/public/abc-123-.../summary"
   },
   {
-    "name": "Seed: Mean Reversion DAX",
+    "name": "Strategy 2",
     ...
   }
+  // ... through Strategy 10
 ]
 ```
 
-Wipes any existing strategies whose name matches a seed entry (and their `strategy_performance`, `trades`, `real_time_strategies`, `real_time_trades` rows), then creates two fresh strategies with realistic snapshot series and a mix of closed/open/cancelled trades. The sync triggers auto-populate the `real_time_*` tables — the response only counts what was directly written.
+**Wipes every existing strategy** (and their `strategy_performance`, `trades`, `real_time_strategies`, `real_time_trades` rows), then creates **10 fresh strategies** named `Strategy 1` through `Strategy 10`. Each gets a 10-day `strategy_performance` snapshot series and a mix of closed/open/cancelled trades shaped to exercise different chart patterns (uptrends, oscillating ranges, drawdown-heavy, etc.). The sync triggers auto-populate the `real_time_*` tables — the response only counts what was directly written.
 
 **Disabled in production.** Returns `403 Forbidden` when `NODE_ENV === 'production'`.
 
-Designed to be re-run safely — each call resets the seed strategies to their starting state with fresh UUIDs.
+Designed to be re-run safely — each call resets to a clean 10-strategy state with fresh UUIDs.
 
 Expected metrics after seeding (`GET /strategies/:id/performance` for each):
 
 | Strategy | `totalTrades` | `winningTrades` / `losingTrades` | `winRate` | `maxDrawdown` (USD) | `currentDrawdown` (USD) | `totalPnL` |
 |---|---|---|---|---|---|---|
-| Seed: Momentum EUR/USD | 13 | 8 / 3 | 0.7273 | 100 | 100 | 220 |
-| Seed: Mean Reversion DAX | 12 | 5 / 5 | 0.5 | 25 | 0 | 130 |
+| Strategy 1  | 13 | 8 / 3 | 0.7273 | 100 | 100 | 220 |
+| Strategy 2  | 12 | 5 / 5 | 0.5    | 25  | 0   | 130 |
+| Strategy 3  | 11 | 8 / 1 | 0.8889 | 10  | 0   | 160 |
+| Strategy 4  | 11 | 6 / 3 | 0.6667 | 250 | 50  | 750 |
+| Strategy 5  | 11 | 8 / 1 | 0.8889 | 30  | 0   | 650 |
+| Strategy 6  | 11 | 5 / 4 | 0.5556 | 30  | 0   | 300 |
+| Strategy 7  | 11 | 5 / 4 | 0.5556 | 30  | 0   | 80  |
+| Strategy 8  | 11 | 5 / 4 | 0.5556 | 250 | 0   | 550 |
+| Strategy 9  | 11 | 7 / 2 | 0.7778 | 20  | 0   | 230 |
+| Strategy 10 | 11 | 9 / 0 | 1.0    | 0   | 0   | 270 |
 
 ## Error Responses
 

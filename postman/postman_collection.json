@@ -1,11 +1,34 @@
 ﻿{
   "info": {
     "name": "MetaAPI Trading Platform + Strategy Management",
-    "description": "REST API for MetaAPI account provisioning, trading operations, and strategy management",
+    "description": "REST API for MetaAPI account provisioning, trading operations, strategy management, and the daily strategy-sync pipeline.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "2.2.0"
+    "version": "2.3.0"
   },
   "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Hello",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Application root — returns the service banner string. Useful as a basic liveness check that the HTTP layer is up."
+          },
+          "response": []
+        }
+      ]
+    },
     {
       "name": "Provisioning",
       "item": [
@@ -1231,7 +1254,7 @@
                     "seed"
                   ]
                 },
-                "description": "Seed deterministic demo data for local testing.\n\nWipes any existing strategies whose name matches a seed entry (and their `strategy_performance`, `trades`, `real_time_strategies`, `real_time_trades` rows), then creates two fresh strategies with realistic snapshot series and a mix of closed/open/cancelled trades. The sync triggers auto-populate the real-time mirror tables.\n\n**Disabled in production** — returns 403 when `NODE_ENV === 'production'`.\n\nBody (optional):\n- `dayOne` (YYYY-MM-DD) — overrides the day-1 anchor. Defaults to `2024-04-20`.\n\nResponse: an array of per-strategy results, each containing `strategyId`, counts, and the URLs (`performanceUrl`, `publicSummaryUrl`) you can hit next.\n\nExpected metrics after seeding:\n- Seed: Momentum EUR/USD → totalTrades 13, winRate 0.7273, maxDrawdown 100, currentDrawdown 100, totalPnL 220.\n- Seed: Mean Reversion DAX → totalTrades 12, winRate 0.5, maxDrawdown 25, currentDrawdown 0, totalPnL 130."
+                "description": "Seed deterministic demo data for local testing.\n\n**Wipes every existing strategy** (and their `strategy_performance`, `trades`, `real_time_strategies`, `real_time_trades` rows), then creates **10 fresh strategies** named `Strategy 1` through `Strategy 10`. Each gets a 10-day `strategy_performance` snapshot series plus a mix of closed/open/cancelled trades shaped to exercise different chart patterns (uptrends, oscillating ranges, drawdown-heavy, etc.). The Postgres sync triggers auto-populate the `real_time_*` mirror tables.\n\n**Disabled in production** — the controller returns 403 when `NODE_ENV === 'production'`.\n\nBody (optional):\n- `dayOne` (YYYY-MM-DD) — overrides the day-1 anchor. Defaults to `2024-04-20`.\n\nResponse: an array of 10 per-strategy results, each containing `name` (`Strategy N`), `strategyId`, counts, and the URLs (`performanceUrl`, `publicSummaryUrl`) you can hit next."
               },
               "response": []
             }
@@ -1262,6 +1285,59 @@
               "response": []
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Strategy Sync",
+      "description": "Daily MetaApi → strategy stats sync pipeline. The cron fires at the configured `STRATEGY_SYNC_CRON` (default `5 0 * * *` UTC); these endpoints expose the same code path for ad-hoc operator use.\n\nConcurrency: the service holds a Postgres advisory lock for the duration of every run. Calling concurrently with the cron or with another invocation is safe — the second caller returns a `SyncRunResult` with `skippedReason: \"lock_held_by_other_replica\"` and never touches MetaApi or the database.\n\nHTTP semantics: both endpoints always return 200 (even on skipped runs). Operators distinguish \"ran\" vs \"skipped\" via the response body's `skippedReason` field. Possible values:\n- `no_account_configured` — `METAAPI_ACCOUNT_ID` env var missing.\n- `invalid_account_id` — env var is set but not a UUID.\n- `lock_held_by_other_replica` — another replica's run is in flight.\n\nAttribution: every MetaApi order must carry a comment of the form `<STRATEGY_COMMENT_PREFIX><lowercase-uuid>` (prefix defaults to `STRAT:`). Skipped deals are split into `dealsUntagged` (no recognisable prefix) and `dealsUnknownStrategy` (UUID doesn't match an active strategy) for operator triage.",
+      "item": [
+        {
+          "name": "Run Incremental Sync",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/strategy-sync/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "strategy-sync",
+                "run"
+              ]
+            },
+            "description": "Trigger an incremental sync immediately. Reads the per-account `sync_cursors` row to decide how far back to fetch:\n\n- **First run for the account** (no cursor row): backfills `STRATEGY_BACKFILL_DAYS` of history (default 365).\n- **Subsequent runs**: window is `[cursor.last_deal_synced_at − STRATEGY_SYNC_OVERLAP_MINUTES, now]` (default overlap = 60 min, to absorb clock skew between MetaApi and our wall clock).\n\nOn success, the cursor is advanced to the max `deal.time` observed during the run.\n\nResponse body: `SyncRunResult` with `dealsFetched`, `dealsAttributed`, `dealsUntagged`, `dealsUnknownStrategy`, `strategiesProcessed`, and `perStrategy[]` (per-strategy `tradesUpserted`, `snapshotWritten`, `error`)."
+          },
+          "response": []
+        },
+        {
+          "name": "Backfill Window",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"2024-01-01T00:00:00.000Z\",\n  \"to\": \"2024-02-01T00:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/strategy-sync/backfill",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "strategy-sync",
+                "backfill"
+              ]
+            },
+            "description": "Re-pull a fixed historical window from MetaApi without advancing the cursor. Use after fixing a misconfigured `STRAT:<uuid>` comment on past orders, or when onboarding a new strategy and you need to re-attribute existing deals.\n\nBody (required, both ISO-8601):\n- `from` — inclusive lower bound of the deal-fetch window.\n- `to` — exclusive upper bound. Must be strictly greater than `from`.\n\nReturns the same `SyncRunResult` shape as `/strategy-sync/run`. The cursor is **not** touched, so subsequent normal runs continue from wherever they were before the backfill.\n\nErrors:\n- 400 — `from`/`to` not ISO-8601, or `from >= to`."
+          },
+          "response": []
         }
       ]
     }

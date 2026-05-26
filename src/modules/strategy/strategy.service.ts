@@ -1,6 +1,12 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectConnection, InjectModel } from '@nestjs/sequelize';
+import { Op, QueryTypes, Transaction } from 'sequelize';
+import { Sequelize } from 'sequelize-typescript';
 import { randomUUID } from 'crypto';
 import { Strategy } from '../../database/models/strategy.model';
 import { Trade } from '../../database/models/trade.model';
@@ -12,12 +18,27 @@ import { StrategyPerformanceDto } from './dto/strategy-performance.dto';
 import { PublicStrategySummaryDto } from './dto/public-strategy-summary.dto';
 import { EquityCurvePointDto } from './dto/equity-curve.dto';
 import { SeedResultDto } from './dto/seed-result.dto';
+import { computeStrategyStats } from './strategy-stats.util';
+
+/**
+ * Shared advisory-lock key for "anything that rewrites strategy state
+ * in bulk" — the daily strategy-sync run AND the dev seed both grab
+ * this same key inside their transaction. That way the sync cron and
+ * a manually-triggered seed cannot interleave, and two concurrent
+ * seeds cannot race against each other.
+ *
+ * Must match `STRATEGY_SYNC_LOCK_KEY` in
+ * `src/modules/strategy-sync/strategy-sync.service.ts`. Don't change
+ * either value in isolation.
+ */
+const STRATEGY_WRITE_LOCK_KEY = 0x5747c9ce;
 
 @Injectable()
 export class StrategyService {
   private readonly logger = new Logger(StrategyService.name);
 
   constructor(
+    @InjectConnection() private readonly sequelize: Sequelize,
     @InjectModel(Strategy)
     private readonly strategyModel: typeof Strategy,
     @InjectModel(Trade)
@@ -146,9 +167,14 @@ export class StrategyService {
     try {
       await this.findById(strategyId);
 
+      // `real_time_strategies` is the fast-path mirror for sum totals,
+      // populated by the Postgres trigger from the most recent
+      // `strategy_performance` snapshot. We read it as-is for
+      // `totalPnL` / `unrealizedPnL` to keep this endpoint O(1) on
+      // those values; the trade-derived metrics (win rate, drawdown,
+      // counts) still come from the source-of-truth helper below.
       const realTimeData =
         await this.realTimeStrategyModel.findByPk(strategyId);
-
       const totalPnL = Number(realTimeData?.total_pnl || 0);
       const unrealizedPnL = Number(realTimeData?.unrealized_pnl || 0);
       const realizedPnL = totalPnL - unrealizedPnL;
@@ -177,55 +203,41 @@ export class StrategyService {
         };
       }
 
-      const trades = await this.tradeModel.findAll({
-        where: {
-          strategy_id: strategyId,
-          entry_time: { [Op.gte]: day1 },
-        },
-      });
+      const [trades, snapshots] = await Promise.all([
+        this.tradeModel.findAll({
+          where: {
+            strategy_id: strategyId,
+            entry_time: { [Op.gte]: day1 },
+          },
+        }),
+        this.strategyPerformanceModel.findAll({
+          where: {
+            strategy_id: strategyId,
+            timestamp: { [Op.gte]: day1 },
+          },
+          order: [['timestamp', 'ASC']],
+          attributes: ['timestamp', 'total_pnl'],
+        }),
+      ]);
 
-      const totalTrades = trades.length;
-      const closedTrades = trades.filter((t) => t.status === 'closed');
-      const winningTrades = closedTrades.filter(
-        (t) => Number(t.pnl ?? 0) > 0,
-      ).length;
-      const losingTrades = closedTrades.filter(
-        (t) => Number(t.pnl ?? 0) < 0,
-      ).length;
-      const winRate =
-        closedTrades.length > 0 ? winningTrades / closedTrades.length : 0;
-
-      const snapshots = await this.strategyPerformanceModel.findAll({
-        where: {
-          strategy_id: strategyId,
-          timestamp: { [Op.gte]: day1 },
-        },
-        order: [['timestamp', 'ASC']],
-        attributes: ['timestamp', 'total_pnl'],
-      });
-
-      let peak = -Infinity;
-      let maxDrawdown = 0;
-      let currentDrawdown = 0;
-      for (const snap of snapshots) {
-        const v = Number(snap.total_pnl);
-        if (v > peak) peak = v;
-        const dd = peak - v;
-        if (dd > maxDrawdown) maxDrawdown = dd;
-        currentDrawdown = dd;
-      }
+      const stats = computeStrategyStats(
+        trades,
+        snapshots,
+        unrealizedPnL,
+        day1,
+      );
 
       return {
         strategyId,
         totalPnL: parseFloat(totalPnL.toFixed(8)),
         unrealizedPnL: parseFloat(unrealizedPnL.toFixed(8)),
         realizedPnL: parseFloat(realizedPnL.toFixed(8)),
-        winRate: parseFloat(winRate.toFixed(4)),
-        totalTrades,
-        winningTrades,
-        losingTrades,
-        maxDrawdown: parseFloat(maxDrawdown.toFixed(8)),
-        currentDrawdown: parseFloat(currentDrawdown.toFixed(8)),
+        winRate: parseFloat(stats.winRate.toFixed(4)),
+        totalTrades: stats.totalTrades,
+        winningTrades: stats.winningTrades,
+        losingTrades: stats.losingTrades,
+        maxDrawdown: parseFloat(stats.maxDrawdown.toFixed(8)),
+        currentDrawdown: parseFloat(stats.currentDrawdown.toFixed(8)),
         lastUpdated,
       };
     } catch (error) {
@@ -348,12 +360,33 @@ export class StrategyService {
   /**
    * Seed deterministic demo data for local/dev testing.
    *
-   * Wipes all existing strategies (and their snapshots, trades, and
-   * real-time rows), then creates fresh strategies with realistic
-   * performance snapshots and trades. The sync triggers auto-populate the
-   * `real_time_*` tables, so we don't write to them directly.
+   * Wipes every existing strategy (and their snapshots, trades, and
+   * real-time mirror rows), then creates **exactly 10** fresh strategies
+   * named `Strategy 1`..`Strategy 10` with a 10-day `pnlSeries` and a
+   * mix of closed/open/cancelled trades each. The Postgres sync triggers
+   * auto-populate the `real_time_*` tables; we don't write to them
+   * directly.
    *
-   * The controller is responsible for refusing to run this in production.
+   * # Atomicity
+   * The entire operation runs inside a single Postgres transaction. If
+   * any insert fails (constraint violation, network blip, etc.), every
+   * earlier insert in the same run is rolled back. The database is
+   * never left in a partial state.
+   *
+   * # Concurrency
+   * The transaction acquires `pg_try_advisory_xact_lock(STRATEGY_WRITE_LOCK_KEY)`
+   * — the **same** lock the strategy-sync cron uses. This means:
+   *   - Two operators hitting `POST /strategies/dev/seed` at the same
+   *     time: the second one gets HTTP 409, no mid-cleanup interleave.
+   *   - The 00:05 UTC sync cron firing during a seed: the cron gets
+   *     `skippedReason: 'lock_held_by_other_replica'` and tries again
+   *     on its next tick.
+   *   - The seed running while a sync is mid-flight: the seed gets a
+   *     409 — fail fast instead of partial state.
+   *
+   * Intentionally allowed in every environment (including production)
+   * — the only safety net is the advisory-lock concurrency contract
+   * enforced below.
    */
   async seedDevData(dayOneIso?: string): Promise<SeedResultDto[]> {
     const dayOne = this.parseDayOne(dayOneIso);
@@ -375,9 +408,14 @@ export class StrategyService {
       trades: TradeSeed[];
     }
 
+    // Seed names are kept generic (`Strategy 1`..`Strategy 10`) so the
+    // demo dataset doesn't pretend to represent any specific trading
+    // style. The per-seed `pnlSeries` and `trades` shapes are still
+    // deliberately varied (trending up, oscillating, drawdown-heavy,
+    // etc.) so the UI has realistic-looking charts to render.
     const SEEDS: StrategySeed[] = [
       {
-        name: 'Momentum EUR/USD',
+        name: 'Strategy 1',
         accountId: '11111111-1111-1111-1111-111111111111',
         // Peak ratchets 0→320, then dips to 220 → max DD 100, current DD 100.
         pnlSeries: [0, 120, 180, 250, 200, 150, 280, 320, 290, 220],
@@ -398,7 +436,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Mean Reversion DAX',
+        name: 'Strategy 2',
         accountId: '22222222-2222-2222-2222-222222222222',
         // Smaller swings; ends at all-time peak so currentDrawdown is 0.
         // Peaks 80→100→110→130 → max DD 25 (100→75), current DD 0.
@@ -419,7 +457,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Scalper GBP/USD',
+        name: 'Strategy 3',
         accountId: '33333333-3333-3333-3333-333333333333',
         // Steady high-frequency uptrend. Peak 160, last 160 → max DD 10, current DD 0.
         pnlSeries: [0, 25, 50, 70, 60, 85, 110, 130, 140, 160],
@@ -438,7 +476,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Breakout NASDAQ',
+        name: 'Strategy 4',
         accountId: '44444444-4444-4444-4444-444444444444',
         // Strong breakout with pullbacks. Peak 800, last 750 → max DD 50, current DD 50.
         pnlSeries: [0, 200, 400, 350, 600, 550, 700, 650, 800, 750],
@@ -457,7 +495,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Trend Rider Gold',
+        name: 'Strategy 5',
         accountId: '55555555-5555-5555-5555-555555555555',
         // Smooth uptrend with one dip. Peak 650, last 650 → max DD 30, current DD 0.
         pnlSeries: [0, 80, 150, 200, 280, 250, 350, 450, 550, 650],
@@ -476,7 +514,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Swing Trader SPX500',
+        name: 'Strategy 6',
         accountId: '66666666-6666-6666-6666-666666666666',
         // Stair-step pattern. Peak 300, last 300 → max DD 30, current DD 0.
         pnlSeries: [0, 100, 80, 150, 120, 200, 170, 250, 220, 300],
@@ -495,7 +533,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Range Bound USD/JPY',
+        name: 'Strategy 7',
         accountId: '77777777-7777-7777-7777-777777777777',
         // Oscillating range. Peak 80, last 80 → max DD 30, current DD 0.
         pnlSeries: [0, 40, 20, 50, 30, 60, 40, 70, 50, 80],
@@ -514,7 +552,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'News Trader Crude Oil',
+        name: 'Strategy 8',
         accountId: '88888888-8888-8888-8888-888888888888',
         // Volatile with big spikes. Peak 500, last 550 (new peak) → max DD 250, current DD 0.
         pnlSeries: [0, 200, 100, 350, 200, 450, 250, 500, 300, 550],
@@ -533,7 +571,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Pivot Hunter Silver',
+        name: 'Strategy 9',
         accountId: '99999999-9999-9999-9999-999999999999',
         // Moderate climb with mild pullbacks. Peak 230, last 230 → max DD 20, current DD 0.
         pnlSeries: [0, 50, 90, 70, 130, 110, 170, 150, 210, 230],
@@ -552,7 +590,7 @@ export class StrategyService {
         ],
       },
       {
-        name: 'Grid Bot USD/CHF',
+        name: 'Strategy 10',
         accountId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
         // Steady linear growth. Peak 270, last 270 → max DD 0, current DD 0.
         pnlSeries: [0, 30, 60, 90, 120, 150, 180, 210, 240, 270],
@@ -572,85 +610,148 @@ export class StrategyService {
       },
     ];
 
-    await this.cleanupAllStrategies();
+    return this.sequelize.transaction(async (tx) => {
+      const lockAcquired = await this.tryAcquireWriteLock(tx);
+      if (!lockAcquired) {
+        // Another seed run, or the daily strategy-sync cron, is holding
+        // the write lock. Bail out so we never half-cleanup the table.
+        this.logger.warn(
+          'seedDevData skipped: write lock held by another transaction (seed or strategy-sync in flight).',
+        );
+        throw new ConflictException(
+          'A seed or strategy-sync run is already in progress. Try again in a moment.',
+        );
+      }
 
-    const results: SeedResultDto[] = [];
+      await this.cleanupAllStrategiesTx(tx);
 
-    for (const seed of SEEDS) {
-      const strategy = await this.create({ name: seed.name });
-      const strategyId = strategy.id;
+      // Insert all 10 strategies in one round-trip and capture the
+      // generated UUIDs. `returning: true` is needed on Postgres so
+      // `bulkCreate` populates each instance's `id` for us to use as
+      // the FK on the snapshots + trades below.
+      const createdStrategies = await this.strategyModel.bulkCreate(
+        SEEDS.map((s) => ({ name: s.name, status: 'active' })),
+        { transaction: tx, returning: true },
+      );
 
-      let runningPeak = -Infinity;
-      for (let i = 0; i < seed.pnlSeries.length; i++) {
-        const v = seed.pnlSeries[i];
-        if (v > runningPeak) runningPeak = v;
-        const currentDrawdown = runningPeak - v;
-        const ts = this.addDays(dayOne, i);
-        await this.strategyPerformanceModel.create({
-          strategy_id: strategyId,
-          account_id: seed.accountId,
-          timestamp: ts,
-          total_trades: 0,
-          winning_trades: 0,
-          losing_trades: 0,
-          win_rate: 0,
-          total_pnl: v,
-          unrealized_pnl: 0,
-          realized_pnl: v,
-          max_drawdown: 0,
-          current_drawdown: currentDrawdown,
-          last_updated: ts,
+      const allSnapshots: Array<Record<string, unknown>> = [];
+      const allTrades: Array<Record<string, unknown>> = [];
+      const results: SeedResultDto[] = [];
+
+      for (let s = 0; s < SEEDS.length; s++) {
+        const seed = SEEDS[s];
+        const strategyId = createdStrategies[s].id;
+
+        let runningPeak = -Infinity;
+        for (let i = 0; i < seed.pnlSeries.length; i++) {
+          const v = seed.pnlSeries[i];
+          if (v > runningPeak) runningPeak = v;
+          const currentDrawdown = runningPeak - v;
+          const ts = this.addDays(dayOne, i);
+          allSnapshots.push({
+            strategy_id: strategyId,
+            account_id: seed.accountId,
+            timestamp: ts,
+            total_trades: 0,
+            winning_trades: 0,
+            losing_trades: 0,
+            win_rate: 0,
+            total_pnl: v,
+            unrealized_pnl: 0,
+            realized_pnl: v,
+            max_drawdown: 0,
+            current_drawdown: currentDrawdown,
+            // `last_updated` intentionally omitted: the
+            // `sync_real_time_strategies` Postgres trigger / column
+            // default owns this value. See strategy-sync.service.ts.
+          });
+        }
+
+        for (const t of seed.trades) {
+          const entry = this.addDays(dayOne, t.dayOffset);
+          const exit =
+            t.exitPrice !== null
+              ? new Date(entry.getTime() + 60 * 60 * 1000)
+              : null;
+          allTrades.push({
+            trade_id: randomUUID(),
+            strategy_id: strategyId,
+            account_id: seed.accountId,
+            symbol: t.symbol,
+            direction: t.direction,
+            entry_time: entry,
+            entry_price: t.entryPrice,
+            exit_time: exit,
+            exit_price: t.exitPrice,
+            quantity: t.quantity,
+            pnl: t.pnl,
+            status: t.status,
+          });
+        }
+
+        const closed = seed.trades.filter((t) => t.status === 'closed').length;
+        const open = seed.trades.filter((t) => t.status === 'open').length;
+        const cancelled = seed.trades.filter(
+          (t) => t.status === 'cancelled',
+        ).length;
+
+        results.push({
+          name: seed.name,
+          strategyId,
+          snapshotsInserted: seed.pnlSeries.length,
+          tradesInserted: seed.trades.length,
+          closedTrades: closed,
+          openTrades: open,
+          cancelledTrades: cancelled,
+          dayOne: dayOne.toISOString(),
+          performanceUrl: `/strategies/${strategyId}/performance`,
+          publicSummaryUrl: `/strategies/public/${strategyId}/summary`,
         });
       }
 
-      for (const t of seed.trades) {
-        const entry = this.addDays(dayOne, t.dayOffset);
-        const exit =
-          t.exitPrice !== null
-            ? new Date(entry.getTime() + 60 * 60 * 1000)
-            : null;
-        await this.tradeModel.create({
-          trade_id: randomUUID(),
-          strategy_id: strategyId,
-          account_id: seed.accountId,
-          symbol: t.symbol,
-          direction: t.direction,
-          entry_time: entry,
-          entry_price: t.entryPrice,
-          exit_time: exit,
-          exit_price: t.exitPrice,
-          quantity: t.quantity,
-          pnl: t.pnl,
-          status: t.status,
-          last_updated: new Date(),
+      // Two bulk inserts, one round-trip each. Far fewer queries than
+      // the old per-row loop, which also reduces the window where a
+      // concurrent sync could observe a partial dataset (even though
+      // the lock already prevents that).
+      if (allSnapshots.length) {
+        await this.strategyPerformanceModel.bulkCreate(allSnapshots as never, {
+          transaction: tx,
+          validate: true,
         });
       }
-
-      const closed = seed.trades.filter((t) => t.status === 'closed').length;
-      const open = seed.trades.filter((t) => t.status === 'open').length;
-      const cancelled = seed.trades.filter(
-        (t) => t.status === 'cancelled',
-      ).length;
-
-      results.push({
-        name: seed.name,
-        strategyId,
-        snapshotsInserted: seed.pnlSeries.length,
-        tradesInserted: seed.trades.length,
-        closedTrades: closed,
-        openTrades: open,
-        cancelledTrades: cancelled,
-        dayOne: dayOne.toISOString(),
-        performanceUrl: `/strategies/${strategyId}/performance`,
-        publicSummaryUrl: `/strategies/public/${strategyId}/summary`,
-      });
+      if (allTrades.length) {
+        await this.tradeModel.bulkCreate(allTrades as never, {
+          transaction: tx,
+          validate: true,
+        });
+      }
 
       this.logger.log(
-        `Seeded strategy "${seed.name}" (${strategyId}) with ${seed.pnlSeries.length} snapshots and ${seed.trades.length} trades.`,
+        `Seeded ${results.length} strategies, ` +
+          `${allSnapshots.length} snapshots, ` +
+          `${allTrades.length} trades in one transaction.`,
       );
-    }
 
-    return results;
+      return results;
+    });
+  }
+
+  /**
+   * Try to grab the cross-process write lock for the duration of the
+   * given transaction. Returns false if another transaction (a sync
+   * run, a parallel seed) is currently holding it. Auto-released by
+   * Postgres on COMMIT or ROLLBACK — no manual cleanup required.
+   */
+  private async tryAcquireWriteLock(tx: Transaction): Promise<boolean> {
+    const rows = await this.sequelize.query<{ locked: boolean }>(
+      'SELECT pg_try_advisory_xact_lock(:key) AS locked',
+      {
+        transaction: tx,
+        replacements: { key: STRATEGY_WRITE_LOCK_KEY },
+        type: QueryTypes.SELECT,
+      },
+    );
+    return rows[0]?.locked === true;
   }
 
   private parseDayOne(iso?: string): Date {
@@ -672,28 +773,33 @@ export class StrategyService {
     return d;
   }
 
-  private async cleanupAllStrategies(): Promise<void> {
+  /**
+   * Delete every strategy and its dependent rows inside the given
+   * transaction. The order matters only for readability — there are no
+   * FK cascades in this schema. Real-time mirror tables (`real_time_*`)
+   * are populated by Postgres triggers on INSERT/UPDATE only, so we
+   * have to wipe them by hand.
+   *
+   * Always call this from within a transaction that holds
+   * `STRATEGY_WRITE_LOCK_KEY`, so a concurrent sync cannot insert new
+   * rows between the DELETEs and the bulk INSERTs that follow.
+   */
+  private async cleanupAllStrategiesTx(tx: Transaction): Promise<void> {
     const existing = await this.strategyModel.findAll({
       attributes: ['id'],
+      transaction: tx,
     });
     if (existing.length === 0) return;
 
     const ids = existing.map((s) => s.id);
-    // No FK cascades exist between these tables, so we delete everything
-    // explicitly (including the real-time mirrors, which the sync triggers
-    // only update on INSERT/UPDATE — not on DELETE).
-    await this.strategyPerformanceModel.destroy({
-      where: { strategy_id: { [Op.in]: ids } },
+    const where = { strategy_id: { [Op.in]: ids } };
+    await this.strategyPerformanceModel.destroy({ where, transaction: tx });
+    await this.realTimeStrategyModel.destroy({ where, transaction: tx });
+    await this.tradeModel.destroy({ where, transaction: tx });
+    await this.realTimeTradeModel.destroy({ where, transaction: tx });
+    await this.strategyModel.destroy({
+      where: { id: { [Op.in]: ids } },
+      transaction: tx,
     });
-    await this.realTimeStrategyModel.destroy({
-      where: { strategy_id: { [Op.in]: ids } },
-    });
-    await this.tradeModel.destroy({
-      where: { strategy_id: { [Op.in]: ids } },
-    });
-    await this.realTimeTradeModel.destroy({
-      where: { strategy_id: { [Op.in]: ids } },
-    });
-    await this.strategyModel.destroy({ where: { id: { [Op.in]: ids } } });
   }
 }

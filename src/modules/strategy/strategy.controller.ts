@@ -97,17 +97,21 @@ export class StrategyController {
   /**
    * Seed deterministic demo data.
    *
-   * Wipes any prior strategies whose name matches a seed entry (and their
-   * snapshots, trades, and real-time mirror rows), then creates fresh
-   * strategies with realistic performance snapshots and a mix of closed,
-   * open, and cancelled trades. The sync triggers auto-populate the
-   * `real_time_*` tables.
+   * Wipes every existing strategy (and its snapshots, trades, and
+   * real-time mirror rows) and creates exactly 10 fresh strategies
+   * named `Strategy 1`..`Strategy 10`, each with a 10-day pnl series
+   * and a varied trade ledger.
    *
-   * Enabled in all environments (including production). This endpoint is
-   * destructive for matching strategy names - operators must be aware.
+   * **Destructive in every environment, including production.** The
+   * endpoint is intentionally left enabled in prod so demo datasets
+   * can be re-seeded on the live deployment. Concurrency is the only
+   * safety concern; the service serialises the call through the same
+   * Postgres advisory lock the strategy-sync cron uses, so a second
+   * seed press, or the 00:05 UTC sync firing mid-seed, returns 409
+   * instead of corrupting the dataset.
    *
-   * Optional body: `{ "dayOne": "YYYY-MM-DD" }` to override the day-1 anchor
-   * (defaults to `2024-04-20` to match the client's reference).
+   * Optional body: `{ "dayOne": "YYYY-MM-DD" }` to override the day-1
+   * anchor (defaults to `2024-04-20`).
    */
   @Post('dev/seed')
   async seedDevData(

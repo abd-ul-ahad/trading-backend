@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
 import { StrategyController } from './strategy.controller';
 import { StrategyService } from './strategy.service';
 import { CreateStrategyDto, UpdateStrategyDto } from './dto';
@@ -329,7 +328,7 @@ describe('StrategyController', () => {
       process.env.NODE_ENV = 'development';
       const seedResult = [
         {
-          name: 'Momentum EUR/USD',
+          name: 'Strategy 1',
           strategyId: 'abc-123',
           snapshotsInserted: 10,
           tradesInserted: 13,
@@ -358,14 +357,16 @@ describe('StrategyController', () => {
       expect(service.seedDevData).toHaveBeenCalledWith(undefined);
     });
 
-    it('should throw ForbiddenException when NODE_ENV is production', async () => {
+    it('forwards to the service in production too (no env gate at the controller)', async () => {
+      // The seed endpoint is intentionally enabled in every environment
+      // — concurrency is enforced by the advisory lock inside the
+      // service, not by an env check here. This test pins down that
+      // contract so a future refactor doesn't silently re-add a gate.
       process.env.NODE_ENV = 'production';
-      const seedSpy = jest.spyOn(service, 'seedDevData');
+      jest.spyOn(service, 'seedDevData').mockResolvedValue([]);
 
-      await expect(controller.seedDevData()).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(seedSpy).not.toHaveBeenCalled();
+      await expect(controller.seedDevData()).resolves.toEqual([]);
+      expect(service.seedDevData).toHaveBeenCalledWith(undefined);
     });
   });
 });

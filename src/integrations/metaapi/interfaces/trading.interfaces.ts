@@ -18,6 +18,16 @@ export interface Position {
   currentPrice: number;
   profit: number;
   swap: number;
+  /**
+   * Optional client-supplied comment on the originating order. Used by the
+   * strategy-sync pipeline to attribute the position to a Strategy via the
+   * `STRAT:<uuid>` convention.
+   */
+  comment?: string;
+  /**
+   * Position open time as reported by the broker (ISO 8601 string).
+   */
+  time?: string;
   [key: string]: unknown;
 }
 
@@ -44,6 +54,29 @@ export interface HistoryOrder {
   [key: string]: unknown;
 }
 
+export type DealEntryType =
+  | 'DEAL_ENTRY_IN'
+  | 'DEAL_ENTRY_OUT'
+  | 'DEAL_ENTRY_INOUT'
+  | 'DEAL_ENTRY_OUT_BY';
+
+export type DealType =
+  | 'DEAL_TYPE_BUY'
+  | 'DEAL_TYPE_SELL'
+  | 'DEAL_TYPE_BALANCE'
+  | 'DEAL_TYPE_CREDIT'
+  | 'DEAL_TYPE_CHARGE'
+  | 'DEAL_TYPE_CORRECTION'
+  | 'DEAL_TYPE_BONUS'
+  | 'DEAL_TYPE_COMMISSION'
+  | 'DEAL_TYPE_COMMISSION_DAILY'
+  | 'DEAL_TYPE_COMMISSION_MONTHLY'
+  | 'DEAL_TYPE_AGENT_DAILY'
+  | 'DEAL_TYPE_AGENT_MONTHLY'
+  | 'DEAL_TYPE_INTEREST'
+  | 'DEAL_TYPE_BUY_CANCELED'
+  | 'DEAL_TYPE_SELL_CANCELED';
+
 export interface Deal {
   id: string;
   symbol: string;
@@ -52,6 +85,21 @@ export interface Deal {
   price: number;
   profit: number;
   time: string;
+  /**
+   * MetaApi-assigned position identifier. Multiple deals (one entry,
+   * one-or-more exits) share the same `positionId` for a given lifecycle.
+   */
+  positionId?: string;
+  /**
+   * Distinguishes whether this deal opens, closes, or reverses a position.
+   */
+  entryType?: DealEntryType;
+  /**
+   * Optional client-supplied comment on the originating order. Used by the
+   * strategy-sync pipeline to attribute the deal to a Strategy via the
+   * `STRAT:<uuid>` convention.
+   */
+  comment?: string;
   [key: string]: unknown;
 }
 

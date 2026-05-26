@@ -171,4 +171,26 @@ export class StrategyPerformance extends BaseModel {
     defaultValue: DataType.NOW,
   })
   declare last_updated: Date;
+
+
+  /*
+   * NOTE: `snapshot_day` is a Postgres GENERATED ALWAYS ... STORED
+   * column added by `20260525000000-add-snapshot-day-and-sync-cursors`.
+   * It is intentionally NOT declared as a @Column on this model:
+   *
+   *   - Postgres rejects INSERT/UPDATE to generated columns even with
+   *     NULL ("cannot insert into column ... which is a generated
+   *     column"). Declaring it as a Sequelize column would cause
+   *     bulkCreate/create to include it in the INSERT statement and
+   *     trip that error.
+   *   - The strategy-sync writer uses
+   *     `conflictFields: ['strategy_id', 'snapshot_day']` on the
+   *     `upsert` call. That field name is forwarded raw to the
+   *     `ON CONFLICT (...)` clause and does not need to be a model
+   *     attribute for it to work.
+   *
+   * Any code that needs to read this column should do so via a raw
+   * `sequelize.query` or `findAll({ attributes: [...] })` with a
+   * literal — never by adding it back here.
+   */
 }

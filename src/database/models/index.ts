@@ -19,3 +19,4 @@ export { StrategyPerformance } from './strategy-performance.model';
 export { RealTimeTrade } from './real-time-trade.model';
 export { RealTimeAccount } from './real-time-account.model';
 export { RealTimeStrategy } from './real-time-strategy.model';
+export { SyncCursor } from './sync-cursor.model';

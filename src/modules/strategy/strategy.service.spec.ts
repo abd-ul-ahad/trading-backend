@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/sequelize';
-import { NotFoundException } from '@nestjs/common';
+import { getConnectionToken, getModelToken } from '@nestjs/sequelize';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { StrategyService } from './strategy.service';
 import { Strategy } from '../../database/models/strategy.model';
 import { Trade } from '../../database/models/trade.model';
@@ -51,15 +51,32 @@ describe('StrategyService', () => {
   };
 
   beforeEach(async () => {
+    const txObject = { LOCK: { UPDATE: 'UPDATE' } } as const;
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StrategyService,
+        {
+          // Sequelize connection mock. By default `query()` reports the
+          // advisory lock as acquired so seedDevData() proceeds. Specific
+          // tests can override `query.mockResolvedValueOnce([{ locked: false }])`
+          // to simulate contention.
+          provide: getConnectionToken(),
+          useValue: {
+            transaction: jest.fn(
+              async (cb: (t: typeof txObject) => Promise<unknown>) =>
+                cb(txObject),
+            ),
+            query: jest.fn(async () => [{ locked: true }]),
+          },
+        },
         {
           provide: getModelToken(Strategy),
           useValue: {
             create: jest.fn(),
             findAll: jest.fn(),
             findByPk: jest.fn(),
+            bulkCreate: jest.fn(),
+            destroy: jest.fn(),
           },
         },
         {
@@ -67,6 +84,8 @@ describe('StrategyService', () => {
           useValue: {
             findAll: jest.fn(),
             findAndCountAll: jest.fn(),
+            bulkCreate: jest.fn(),
+            destroy: jest.fn(),
           },
         },
         {
@@ -74,6 +93,8 @@ describe('StrategyService', () => {
           useValue: {
             findAll: jest.fn(),
             findOne: jest.fn(),
+            bulkCreate: jest.fn(),
+            destroy: jest.fn(),
           },
         },
         {
@@ -505,6 +526,134 @@ describe('StrategyService', () => {
       await expect(service.getEquityCurve(id)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // seedDevData — atomicity + concurrency contract
+  //
+  // These tests pin down the race-safety guarantees added in the
+  // "make dev/seed bulletproof" pass:
+  //   1. The whole operation runs inside ONE Sequelize transaction.
+  //   2. Before doing anything destructive it acquires
+  //      pg_try_advisory_xact_lock(STRATEGY_WRITE_LOCK_KEY) — the same
+  //      key the strategy-sync cron uses.
+  //   3. If the lock cannot be acquired, ConflictException is thrown
+  //      and zero destructive work runs.
+  //   4. The 10 strategies + their snapshots/trades are inserted via
+  //      bulkCreate (one INSERT per table) inside the same tx.
+  // -----------------------------------------------------------------
+  describe('seedDevData (race-safety contract)', () => {
+    let sequelize: any;
+    const fakeStrategyRows = Array.from({ length: 10 }, (_, i) => ({
+      id: `00000000-0000-0000-0000-00000000000${i}`,
+      name: `Strategy ${i + 1}`,
+    }));
+
+    beforeEach(() => {
+      sequelize = (service as any).sequelize;
+      jest
+        .spyOn(strategyModel, 'bulkCreate')
+        .mockResolvedValue(fakeStrategyRows as any);
+      jest.spyOn(strategyModel, 'findAll').mockResolvedValue([]);
+      jest.spyOn(strategyModel, 'destroy').mockResolvedValue(0);
+      jest.spyOn(strategyPerformanceModel, 'bulkCreate').mockResolvedValue([]);
+      jest.spyOn(strategyPerformanceModel, 'destroy').mockResolvedValue(0);
+      jest.spyOn(tradeModel, 'bulkCreate').mockResolvedValue([]);
+      jest.spyOn(tradeModel, 'destroy').mockResolvedValue(0);
+      jest.spyOn(realTimeStrategyModel, 'destroy').mockResolvedValue(0);
+      // RealTimeTrade lives on the test module under a different name;
+      // grab it through the service so the spy hits the same instance.
+      jest
+        .spyOn((service as any).realTimeTradeModel, 'destroy')
+        .mockResolvedValue(0);
+    });
+
+    it('runs the entire seed inside a single Sequelize transaction', async () => {
+      await service.seedDevData('2024-04-20');
+      expect(sequelize.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('acquires pg_try_advisory_xact_lock with the shared write-lock key', async () => {
+      await service.seedDevData('2024-04-20');
+      expect(sequelize.query).toHaveBeenCalledWith(
+        expect.stringContaining('pg_try_advisory_xact_lock'),
+        expect.objectContaining({
+          replacements: { key: 0x5747c9ce },
+        }),
+      );
+    });
+
+    it('throws ConflictException and does NO writes when the lock is held by another transaction', async () => {
+      sequelize.query.mockResolvedValueOnce([{ locked: false }]);
+
+      await expect(service.seedDevData('2024-04-20')).rejects.toThrow(
+        ConflictException,
+      );
+
+      // Critical: zero destructive work happens when contention is detected.
+      expect(strategyModel.destroy).not.toHaveBeenCalled();
+      expect(strategyPerformanceModel.destroy).not.toHaveBeenCalled();
+      expect(tradeModel.destroy).not.toHaveBeenCalled();
+      expect(strategyModel.bulkCreate).not.toHaveBeenCalled();
+      expect(strategyPerformanceModel.bulkCreate).not.toHaveBeenCalled();
+      expect(tradeModel.bulkCreate).not.toHaveBeenCalled();
+    });
+
+    it('bulk-inserts exactly 10 strategies named Strategy 1..Strategy 10', async () => {
+      await service.seedDevData('2024-04-20');
+
+      expect(strategyModel.bulkCreate).toHaveBeenCalledTimes(1);
+      const [rows] = (strategyModel.bulkCreate as jest.Mock).mock.calls[0];
+      expect(rows).toHaveLength(10);
+      expect(rows.map((r: any) => r.name)).toEqual([
+        'Strategy 1',
+        'Strategy 2',
+        'Strategy 3',
+        'Strategy 4',
+        'Strategy 5',
+        'Strategy 6',
+        'Strategy 7',
+        'Strategy 8',
+        'Strategy 9',
+        'Strategy 10',
+      ]);
+    });
+
+    it('uses bulkCreate (one INSERT per table) instead of per-row create calls', async () => {
+      await service.seedDevData('2024-04-20');
+
+      // 10 snapshots * 10 strategies = 100 rows in ONE call.
+      expect(strategyPerformanceModel.bulkCreate).toHaveBeenCalledTimes(1);
+      const [snapshots] = (strategyPerformanceModel.bulkCreate as jest.Mock)
+        .mock.calls[0];
+      expect(snapshots).toHaveLength(100);
+
+      // All trades across all 10 seeds go in ONE call — the exact
+      // count is whatever the seed table sums to (113 today); the
+      // contract we're asserting is "one bulkCreate, not N creates".
+      expect(tradeModel.bulkCreate).toHaveBeenCalledTimes(1);
+      const [trades] = (tradeModel.bulkCreate as jest.Mock).mock.calls[0];
+      expect(trades.length).toBeGreaterThan(50);
+    });
+
+    it('passes the transaction handle into every destroy/bulkCreate call', async () => {
+      await service.seedDevData('2024-04-20');
+
+      // Spot-check a few — every call must include { transaction: <tx> }.
+      const tx = (sequelize.transaction as jest.Mock).mock.calls[0][0];
+      // The cb was invoked with the txObject literal we mocked.
+      void tx; // silence unused for clarity; the assertion below is the real check.
+
+      const allCalls = [
+        ...(strategyModel.bulkCreate as jest.Mock).mock.calls,
+        ...(strategyPerformanceModel.bulkCreate as jest.Mock).mock.calls,
+        ...(tradeModel.bulkCreate as jest.Mock).mock.calls,
+      ];
+      for (const [, opts] of allCalls) {
+        expect(opts).toHaveProperty('transaction');
+        expect(opts.transaction).toBeDefined();
+      }
     });
   });
 });

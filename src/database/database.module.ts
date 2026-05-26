@@ -8,6 +8,7 @@ import { StrategyPerformance } from './models/strategy-performance.model';
 import { RealTimeTrade } from './models/real-time-trade.model';
 import { RealTimeAccount } from './models/real-time-account.model';
 import { RealTimeStrategy } from './models/real-time-strategy.model';
+import { SyncCursor } from './models/sync-cursor.model';
 
 /**
  * Database module that configures Sequelize ORM for PostgreSQL.
@@ -41,6 +42,7 @@ import { RealTimeStrategy } from './models/real-time-strategy.model';
           RealTimeTrade,
           RealTimeAccount,
           RealTimeStrategy,
+          SyncCursor,
         ];
 
         return config;
